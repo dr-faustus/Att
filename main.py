@@ -1,5 +1,3 @@
-# from dataset import *
-from semeval2016_dataset import *
 from model import Net
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,10 +10,12 @@ plt.switch_backend('agg')
 
 
 def prepare_data_set(validation_percentage, word_embedding):
-    # dataset = SimpleDataset('../datas/ABSA14_Restaurants_Train.xml',
-    #                         '../datas/Restaurants_Test_Data_phaseB.xml', validation_percentage=validation_percentage)
-    dataset = SimpleDataset('../datas/ABSA16_Restaurants_Train_SB1_v2.xml',
-                            '../datas/EN_REST_SB1_TEST.xml.gold', validation_percentage=validation_percentage)
+    if data == '2014':
+        dataset = SimpleDataset('../datas/ABSA14_Restaurants_Train.xml',
+                                '../datas/Restaurants_Test_Data_phaseB.xml', validation_percentage=validation_percentage)
+    elif data == '2016':
+        dataset = SimpleDataset('../datas/ABSA16_Restaurants_Train_SB1_v2.xml',
+                                '../datas/EN_REST_SB1_TEST.xml.gold', validation_percentage=validation_percentage)
     train_loader = DataLoader(data='train', word_embeddings=word_embedding, simple_dataset=dataset)
     validation_loader = DataLoader(data='valid', word_embeddings=word_embedding, simple_dataset=dataset)
     test_loader = DataLoader(data='test', word_embeddings=word_embedding, simple_dataset=dataset)
@@ -175,6 +175,8 @@ def test(word_embedding, k, rho, learning_rate, batch_size):
     print(best)
 
 
+data = '2014'
+
 k_list = [0.2, 0.4, 0.6, 0.8, 1.0]
 
 batch_size_list = [16, 32, 64, 128, 256]
@@ -199,6 +201,11 @@ classification_size = 5
 context_size = 300
 topic_hidden_size = 20
 drop_out_prob = 0.6
+
+if data == '2014':
+    from dataset import *
+elif data == '2016':
+        from semeval2016_dataset import *
 
 # validate(word_embedding, k, rho, learning_rate, batch_size)
 # num_of_topics_validation_plot(300, word_embedding, learning_rate, batch_size, num_of_topics_list)

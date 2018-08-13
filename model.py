@@ -249,13 +249,3 @@ class Net:
             valid_loss += self.validate_loss(outputs, labels.squeeze(1))
         valid_loss = float(valid_loss)
         return valid_loss
-
-# input_size = 65
-# hidden_size = 150
-# num_of_layers = 1
-
-# model = StackCnn(100, 5, 150, 300, 12, 65, 5, 6).double()
-# data = np.zeros((5, 3, 300, 65))
-# data = torch.from_numpy(data)
-# data = Variable(data)
-# print(model(data))
