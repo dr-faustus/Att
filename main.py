@@ -205,7 +205,7 @@ drop_out_prob = 0.6
 if data == '2014':
     from dataset import *
 elif data == '2016':
-        from semeval2016_dataset import *
+    from semeval2016_dataset import *
 
 # validate(word_embedding, k, rho, learning_rate, batch_size)
 # num_of_topics_validation_plot(300, word_embedding, learning_rate, batch_size, num_of_topics_list)

@@ -8,6 +8,12 @@ from torch.backends import cudnn
 import random
 
 
+def squash(tensor, dim=-1):
+    squared_norm = (tensor ** 2).sum(dim=dim, keepdim=True)
+    scale = squared_norm / (1 + squared_norm)
+    return scale * tensor / torch.sqrt(squared_norm)
+
+
 class topkCE(nn.Module):
     def __init__(self, k=0.7):
         super(topkCE, self).__init__()
@@ -59,11 +65,20 @@ class TopicAttention(nn.Module):
             ) for _ in range(num_of_topics)])
         self.topic_hidden = nn.ModuleList([
                 nn.Linear(hidden_size * 2, topic_hidden_size) for _ in range(num_of_topics)])
-        print(topic_hidden_size * num_of_topics)
-        print(classification_size)
         self.output_layer = nn.Linear(topic_hidden_size * num_of_topics, classification_size, bias=True)
 
+        self.reconstruction_layer = nn.Sequential(
+            nn.Linear(topic_hidden_size * num_of_topics, 2 ** 10),
+            nn.ReLU(),
+            nn.Linear(2 ** 10, 2 ** 12),
+            nn.ReLU(),
+            nn.Linear(2 ** 12, 10500),
+            nn.Sigmoid()
+        )
+        self.reconstruction_loss_function = nn.MSELoss()
+
     def forward(self, x, validate=False):
+        init_input = x
         x = self.drop_out(x)
         x, hidden = self.rnn(x)
         hidden = self.drop_out(torch.cat((hidden[0], hidden[1]), dim=1))
@@ -81,16 +96,15 @@ class TopicAttention(nn.Module):
             probs = F.softmax(energy, dim=1)
             out = torch.bmm(x.transpose(1, 2), probs).squeeze(-1)
             out = self.topic_hidden[i](out)
-            out = F.relu(out)
+            out = F.tanh(out)
             if x_ is None:
                 x_ = out
             else:
                 x_ = torch.cat((x_, out), dim=1)
         x = self.output_layer(x_)
-        if self.training is False and validate is False:
-            x = F.softmax(x, dim=1)
+        x = F.softmax(x, dim=1)
 
-        return x, self.regularization_loss(context_values)
+        return x, self.regularization_loss(context_values), self.reconstruction_loss(x_, init_input)
 
     def regularization_loss(self, context_values):
         batch_size = context_values.size(0)
@@ -104,6 +118,16 @@ class TopicAttention(nn.Module):
         for i in range(batch_size):
             out += torch.norm(reg_term[i] - identity[i])
         return out / batch_size
+
+    def reconstruction_loss(self, hidden_topic, init_input):
+        recon_input = self.reconstruction_layer(hidden_topic)
+        init_input_flat = None
+        for i in range(init_input.size(1)):
+            if init_input_flat is None:
+                init_input_flat = init_input[:, i]
+            else:
+                init_input_flat = torch.cat((init_input_flat, init_input[:, i]), dim=1)
+        return self.reconstruction_loss_function(recon_input, init_input_flat)
 
 
 class Net:
@@ -159,11 +183,11 @@ class Net:
 
                 labels = self.to_var(labels)
                 self.optimizer.zero_grad()
-                outputs, reg_loss = self.model(datas)
+                outputs, reg_loss, rec_loss = self.model(datas)
 
                 label_loss = self.loss_function(outputs, labels.squeeze(1))
 
-                loss = label_loss + reg_loss
+                loss = label_loss + reg_loss# + rec_loss * 5e-3
 
                 loss.backward()
                 self.optimizer.step()
@@ -196,7 +220,7 @@ class Net:
             data = self.to_var(data)
             data = data.unsqueeze(0)
             label = label
-            output, _ = self.model(data)
+            output, _, __ = self.model(data)
 
             output = output.squeeze(0)
             pred_labels.append(list(output))
@@ -245,7 +269,7 @@ class Net:
             # labels = labels.squeeze(1)
 
             labels = self.to_var(labels)
-            outputs, _ = self.model(datas, validate=True)
+            outputs, _, __ = self.model(datas, validate=True)
             valid_loss += self.validate_loss(outputs, labels.squeeze(1))
         valid_loss = float(valid_loss)
         return valid_loss
