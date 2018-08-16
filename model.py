@@ -44,7 +44,7 @@ class topkCE(nn.Module):
 
 class TopicAttention(nn.Module):
     def __init__(self, num_of_topics=6, hidden_size=150, input_size=300, classification_size=5, context_size=300,
-                 topic_hidden_size=20, drop_out_prob=0.6):
+                 topic_hidden_size=20, drop_out_prob=0.6, sentence_length=65):
         super(TopicAttention, self).__init__()
         torch.manual_seed(0)
         np.random.seed(0)
@@ -53,6 +53,7 @@ class TopicAttention(nn.Module):
         cudnn.benchmark = True
         random.seed(0)
         self.num_of_topics = num_of_topics
+        self.sentence_length = sentence_length
         self.drop_out = nn.Dropout(p=drop_out_prob)
 
         self.rnn = nn.GRU(input_size=input_size,
@@ -72,7 +73,7 @@ class TopicAttention(nn.Module):
             nn.ReLU(),
             nn.Linear(2 ** 10, 2 ** 12),
             nn.ReLU(),
-            nn.Linear(2 ** 12, 10500),
+            nn.Linear(2 ** 12, sentence_length * input_size),
             nn.Sigmoid()
         )
         self.reconstruction_loss_function = nn.MSELoss()
@@ -96,7 +97,7 @@ class TopicAttention(nn.Module):
             probs = F.softmax(energy, dim=1)
             out = torch.bmm(x.transpose(1, 2), probs).squeeze(-1)
             out = self.topic_hidden[i](out)
-            out = F.tanh(out)
+            out = F.relu(out)
             if x_ is None:
                 x_ = out
             else:
@@ -104,7 +105,7 @@ class TopicAttention(nn.Module):
         x = self.output_layer(x_)
         x = F.softmax(x, dim=1)
 
-        return x, self.regularization_loss(context_values), self.reconstruction_loss(x_, init_input)
+        return x, self.regularization_loss(context_values)#, self.reconstruction_loss(x_, init_input)
 
     def regularization_loss(self, context_values):
         batch_size = context_values.size(0)
@@ -136,7 +137,8 @@ class Net:
                  topic_hidden_size=20, drop_out_prob=0.6):
         self.model = TopicAttention(num_of_topics=num_of_topics, hidden_size=hidden_size, input_size=input_size,
                                     classification_size=train_loader.get_num_of_classes(), context_size=context_size,
-                                    topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
+                                    topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob,
+                                    sentence_length=train_loader.get_sentence_length())
         if torch.has_cudnn:
             self.model.cuda()
         self.num_epochs = epochs
@@ -144,6 +146,8 @@ class Net:
         # self.loss_function = nn.CrossEntropyLoss()
         self.loss_function = nn.MSELoss()
         self.validate_loss = nn.MSELoss()
+        # self.loss_function = nn.MultiMarginLoss()
+        # self.validate_loss = nn.MultiMarginLoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
         # lr_decay = lambda epoch: 1 / (1 + epoch * 0.2)
         # self.optimizer = torch.optim.SGD(self.model.parameters(), lr=learning_rate, momentum=0.9)
@@ -183,7 +187,7 @@ class Net:
 
                 labels = self.to_var(labels)
                 self.optimizer.zero_grad()
-                outputs, reg_loss, rec_loss = self.model(datas)
+                outputs, reg_loss = self.model(datas)
 
                 label_loss = self.loss_function(outputs, labels.squeeze(1))
 
@@ -220,7 +224,7 @@ class Net:
             data = self.to_var(data)
             data = data.unsqueeze(0)
             label = label
-            output, _, __ = self.model(data)
+            output, _ = self.model(data)
 
             output = output.squeeze(0)
             pred_labels.append(list(output))
@@ -265,9 +269,6 @@ class Net:
                                             num_workers=0)
         for datas, labels in data_loader:
             datas = self.to_var(datas)
-            # labels = torch.argmax(labels, dim=2)
-            # labels = labels.squeeze(1)
-
             labels = self.to_var(labels)
             outputs, _, __ = self.model(datas, validate=True)
             valid_loss += self.validate_loss(outputs, labels.squeeze(1))
