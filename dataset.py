@@ -8,6 +8,7 @@ import allennlp.commands.elmo as E
 from tqdm import tqdm
 import pickle
 
+
 class SimpleDataset:
     def __init__(self, validation_percentage, dataset_name='sem-2014'):
         self.dataset_name = dataset_name
@@ -85,13 +86,13 @@ class SimpleDataset:
         unprocessed_sentences = []
         for sentence in unprocessed_data:
             text = sentence[0].text
-            # if '$' in text:
-            #     text = text.replace('$', ' price ')
+            if '$' in text:
+                text = text.replace('$', ' price ')
             text = text.lower()
             unprocessed_sentences.append(text)
         preprocessor = PreProcessing(unprocessed_sentences, 'english')
-        processed_sentences = preprocessor.Remove_Punctuation()
-        # processed_sentences = preprocessor.Remove_StopWords()
+        preprocessor.Remove_Punctuation()
+        processed_sentences = preprocessor.Remove_StopWords()
         return processed_sentences
 
     def get_inputs_sem_2016(self, processed_sentences, unprocessed_data, is_train=False):
@@ -204,8 +205,8 @@ class SimpleDataset:
             return processed_data
 
 
-# word_em = models.KeyedVectors.load_word2vec_format('../yelp_W2V_skipgram.bin', binary=True)
-word_em = models.KeyedVectors.load_word2vec_format('../glove_1.9B_300d.bin', binary=True)
+word_em = models.KeyedVectors.load_word2vec_format('../yelp_W2V_skipgram.bin', binary=True)
+# word_em = models.KeyedVectors.load_word2vec_format('../glove_1.9B_300d.bin', binary=True)
 # options_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json"
 # weight_file = '../elmo_2x4096_512_2048cnn_2xhighway_5.5B_weights.hdf5'
 # elmo = E.ElmoEmbedder(options_file, weight_file)
@@ -245,7 +246,7 @@ class DataLoader(dataset.Dataset):
         if dataset_name == 'sem-2016':
             self.sentence_length = 65
         elif dataset_name == 'sem-2014':
-            self.sentence_length = 70
+            self.sentence_length = 33
         self.padding = padding
         self.embedding_len = 300
 
@@ -268,7 +269,7 @@ class DataLoader(dataset.Dataset):
                 continue
         if self.padding is True:
             while len(sentence_rep) < self.sentence_length:
-                sentence_rep.append(np.array(np.zeros(self.embedding_len), dtype='float64'))
+                sentence_rep.append(np.array(np.zeros(self.embedding_len), dtype='float32'))
         sentence_rep = np.array(sentence_rep, dtype='float64')
         label = np.array(self.labels[item])
         return sentence_rep, np.array([label])
@@ -280,6 +281,10 @@ def get_data_loaders(validation_percentage=0.1, dataset_name='sem-2014'):
     valid_loader = DataLoader(data='valid', simple_dataset=dataset, dataset_name=dataset_name)
     test_loader = DataLoader(data='test', simple_dataset=dataset, dataset_name=dataset_name)
     return train_loader, valid_loader, test_loader
+
+
+def return_similar_word_to_vector(vector):
+    return word_em.similar_by_vector(vector, topn=20)
 
 
 if __name__ == '__main__':

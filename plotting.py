@@ -2,6 +2,9 @@ from model import Net
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.font_manager import FontProperties
+import gc
+from dataset import get_data_loaders
+import pickle
 
 fontP = FontProperties()
 fontP.set_size('small')
@@ -9,17 +12,36 @@ fontP.set_size('small')
 plt.switch_backend('agg')
 
 
-def batch_size_validation_plot(num_of_epochs, word_embedding, learning_rate, batch_list):
-    fig, ax = plt.subplots()
+def batch_size_validation_plot(num_of_epochs, dataset_name, learning_rate, batch_list, model_type,
+                               num_of_topics, hidden_size, topic_hidden_size, drop_out_prob):
+    result = dict()
+    dump_file_name = './val_results/batch_size_valid_result_' + model_type + '_' + dataset_name
+    train_loader, validation_loader, test_loader = get_data_loaders(0.1, dataset_name=dataset_name)
     for batch_size in batch_list:
-        train_loader, validation_loader, test_loader = prepare_data_set(0.1, word_embedding)
-        net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate)
+        net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate, model_type,
+                  num_of_topics=num_of_topics, hidden_size=hidden_size, input_size=300,
+                  topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
+        gc.collect()
         train_loss, validation_loss = net.train(batch_size=batch_size, validate=True)
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), train_loss, '--', label=str(batch_size) + ' train')
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), validation_loss, '-', label=str(batch_size) + ' validation')
-    legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large', prop=fontP)
-    legend.get_frame().set_facecolor('#FFFFFF')
-    plt.savefig('batch_size')
+        result[batch_size] = [train_loss, validation_loss]
+    with open(dump_file_name, 'wb') as fp:
+        pickle.dump(result, fp)
+
+
+def num_of_topics_validation(num_of_epochs, dataset_name, learning_rate, batch_size, model_type,
+                             num_of_topics_list, hidden_size, topic_hidden_size, drop_out_prob):
+    result = dict()
+    dump_file_name = './val_results/num_of_topics_valid_result_' + model_type + '_' + dataset_name
+    train_loader, validation_loader, test_loader = get_data_loaders(0.1, dataset_name=dataset_name)
+    for num_of_topics in num_of_topics_list:
+        net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate, model_type,
+                  num_of_topics=num_of_topics, hidden_size=hidden_size, input_size=300,
+                  topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
+        gc.collect()
+        train_loss, validation_loss = net.train(batch_size=batch_size, validate=True)
+        result[batch_size] = [train_loss, validation_loss]
+    with open(dump_file_name, 'wb') as fp:
+        pickle.dump(result, fp)
 
 
 def number_of_word_embedding_validation_plot(num_of_epochs, word_embedding_list, learning_rate, batch_size, rho, k):

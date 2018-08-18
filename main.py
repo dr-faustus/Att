@@ -7,39 +7,33 @@ fontP.set_size('small')
 plt.switch_backend('agg')
 
 
-def validate(word_embedding, k, rho, learning_rate, batch_size, dataset_name):
+def validate(learning_rate, batch_size, dataset_name, model_type):
     train_loader, validation_loader, test_loader = get_data_loaders(0.1, dataset_name)
-    net = Net(250, train_loader, test_loader, validation_loader, learning_rate)
-    best = net.train(batch_size=batch_size, validate=True)
+    net = Net(250, train_loader, test_loader, validation_loader, learning_rate, model_type=model_type)
+    train_loss, test_loss = net.train(batch_size=batch_size, validate=True)
 
 
-def test(word_embedding, k, rho, learning_rate, batch_size, dataset_name):
+def test(learning_rate, batch_size, dataset_name, model_type):
     train_loader, validation_loader, test_loader = get_data_loaders(0.0, dataset_name)
     net = Net(300, train_loader, test_loader, validation_loader, learning_rate, input_size=input_size,
-              num_of_topics=num_of_topics, hidden_size=hidden_size, context_size=context_size,
-              topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
-    best = net.train(batch_size=batch_size, validate=False)
-    print(best)
+              num_of_topics=num_of_topics, hidden_size=hidden_size,
+              topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob, model_type=model_type)
+    result = net.train(batch_size=batch_size, validate=False)
+    print(result)
 
-
-k_list = [0.2, 0.4, 0.6, 0.8, 1.0]
 
 batch_size_list = [16, 32, 64, 128, 256]
-num_of_topics_list = [6, 8, 10, 15, 20]
-learning_rate_list = [0.001, 0.0007, 0.0005, 0.0001]
+num_of_topics_list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+learning_rate_list = [0.01, 0.005, 0.001, 0.0005, 0.0001]
 hidden_size_list = [50, 100, 150, 200, 300]
 context_size_list = [100, 200, 300, 500]
 topic_hidden_size_list = [5, 10, 20, 50, 100]
 drop_out_prob_list = [0.2, 0.4, 0.5, 0.6, 0.7]
-# word_embedding = ['sg', 'cbow', 'glove']
-# word_embedding = ['sg', 'glove']
-word_embedding = ['sg']
-k = 1.0
-rho = 0.0
+
 learning_rate = 0.001
 batch_size = 128
 
-num_of_topics = 15
+num_of_topics = 5
 hidden_size = 150
 input_size = 300
 classification_size = 5
@@ -48,14 +42,12 @@ topic_hidden_size = 20
 drop_out_prob = 0.6
 
 dataset_name = 'sem-2014'
+model_type = 'topic-attention'
 
-# validate(word_embedding, k, rho, learning_rate, batch_size)
-# num_of_topics_validation_plot(300, word_embedding, learning_rate, batch_size, num_of_topics_list)
-# hidden_size_validation_plot(300, word_embedding, learning_rate, batch_size, num_of_topics, hidden_size_list)
-# context_size_validation_plot(300, word_embedding, learning_rate, batch_size, num_of_topics, hidden_size, context_size_list)
-# topic_hidden_size_validation_plot(300, word_embedding, learning_rate, batch_size, num_of_topics, hidden_size, context_size, topic_hidden_size_list)
-# drop_out_validation_plot(300, word_embedding, learning_rate, batch_size, num_of_topics, hidden_size,
-#                          context_size, topic_hidden_size, drop_out_prob_list)
-# learning_rate_validation_plot(300, word_embedding, learning_rate_list, batch_size, num_of_topics)
-# batch_size_validation_plot(300, word_embedding, learning_rate, batch_size_list, rho, k)
-test(word_embedding, k, rho, learning_rate, batch_size, dataset_name)
+num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type,
+                         num_of_topics_list, hidden_size, topic_hidden_size, drop_out_prob)
+dataset_name = 'sem-2016'
+num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type,
+                         num_of_topics_list, hidden_size, topic_hidden_size, drop_out_prob)
+
+# test(learning_rate, batch_size, dataset_name, model_type)
