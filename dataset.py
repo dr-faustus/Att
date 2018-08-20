@@ -9,6 +9,19 @@ from tqdm import tqdm
 import pickle
 
 
+def pair_wise_add(x, y):
+    assert len(x) == len(y)
+    return [int(x[i] + y[i]) for i in range(len(x))]
+
+
+def pair_wise_se(x, y):
+    assert len(x) == len(y)
+    for i in range(len(x)):
+        if int(x[i]) > int(y[i]):
+            return False
+    return True
+
+
 class SimpleDataset:
     def __init__(self, validation_percentage, dataset_name='sem-2014'):
         self.dataset_name = dataset_name
@@ -96,9 +109,9 @@ class SimpleDataset:
         return processed_sentences
 
     def get_inputs_sem_2016(self, processed_sentences, unprocessed_data, is_train=False):
-        num_of_train_sentences = 1708
         processed_data = []
         categories = []
+        num_of_data_per_cat = [0] * len(self.category_label_num.keys())
         for i in range(len(processed_sentences)):
             processed_sentences[i] = processed_sentences[i].split()
         num_of_data_per_label = [0] * len(self.category_label_num.keys())
@@ -118,25 +131,15 @@ class SimpleDataset:
                 if is_train:
                     if len(unprocessed_data[i][1]) == 0:
                         continue
-                    if valid_size < self.validation_percentage * num_of_train_sentences:
-                        add_valid_data = True
-                        valid_size += 1
-                    else:
-                        add_valid_data = False
                     labels = len(self.category_label_num.keys()) * [0]
                     for opinions in unprocessed_data[i][1]:
                         dict = opinions.attrib
                         if str(dict['category']) not in categories:
                             categories.append(str(dict['category']))
-                        labels[self.category_label_num[str(dict['category'])]] = 1
-                        sentence_categories.append(dict['category'])
+                        labels[self.category_label_num[str(dict['category'])]] = 1.0
+                        num_of_data_per_cat[self.category_label_num[dict['category']]] += 1
                         num_of_data_per_label[self.category_label_num[str(dict['category'])]] += 1
-                    if add_valid_data:
-                        if [sentence, labels] not in valid_data:
-                            valid_data.append([sentence, labels])
-                    else:
-                        if [sentence, labels] not in train_data:
-                            train_data.append([sentence, labels])
+                    processed_data.append([sentence, labels])
                 else:
                     test_sentence_categories = []
                     for opinions in unprocessed_data[i][1]:
@@ -145,16 +148,26 @@ class SimpleDataset:
                             test_sentence_categories.append(self.category_label_num[dict['category']])
                     processed_data.append([sentence, test_sentence_categories])
         if is_train:
+            num_of_valid_data_per_cat = [int(num_of_data_per_cat[i] * self.validation_percentage) for i in range(len(num_of_data_per_cat))]
+            current_num_of_valid_data_per_cat = [0] * len(self.category_label_num.keys())
+            for item in processed_data:
+                sentence = item[0]
+                label = item[1]
+                temp = pair_wise_add(label, current_num_of_valid_data_per_cat)
+                if pair_wise_se(temp, num_of_valid_data_per_cat) is True:
+                    valid_data.append([sentence, label])
+                    current_num_of_valid_data_per_cat = temp
+                else:
+                    train_data.append([sentence, label])
             return train_data, categories, valid_data
         else:
             return processed_data
 
     def get_inputs_sem_2014(self, processed_sentences, unprocessed_data, is_train=False):
-        num_of_train_sentences = len(processed_sentences)
         processed_data = []
         categories = []
+        num_of_data_per_cat = [0] * len(self.category_label_num.keys())
         valid_data = []
-        valid_size = 0
         train_data = []
         for i in range(len(processed_sentences)):
             processed_sentences[i] = processed_sentences[i].split()
@@ -165,11 +178,6 @@ class SimpleDataset:
                     aspect_cats = unprocessed_data[i][1]
                 else:
                     aspect_cats = unprocessed_data[i][2]
-                if valid_size < self.validation_percentage * num_of_train_sentences:
-                    add_valid_data = True
-                    valid_size += 1
-                else:
-                    add_valid_data = False
                 if is_train:
                     labels = 5 * [0]
                     for opinions in aspect_cats:
@@ -177,12 +185,8 @@ class SimpleDataset:
                         labels[self.category_label_num[str(dict['category'])]] = 1
                         if dict['category'] not in categories:
                             categories.append(dict['category'])
-                    if add_valid_data:
-                        if [sentence, labels] not in valid_data:
-                            valid_data.append([sentence, labels])
-                    else:
-                        if [sentence, labels] not in train_data:
-                            train_data.append([sentence, labels])
+                        num_of_data_per_cat[self.category_label_num[dict['category']]] += 1
+                    processed_data.append([sentence, labels])
                 else:
                     test_sentence_categories = []
                     if unprocessed_data[i][1].tag == 'aspectCategories':
@@ -200,6 +204,18 @@ class SimpleDataset:
                 else:
                     processed_data.append([sentence, [self.category_label_num['NULL']]])
         if is_train:
+            num_of_valid_data_per_cat = [int(num_of_data_per_cat[i] * self.validation_percentage) for i in
+                                         range(len(num_of_data_per_cat))]
+            current_num_of_valid_data_per_cat = [0] * len(self.category_label_num.keys())
+            for item in processed_data:
+                sentence = item[0]
+                label = item[1]
+                temp = pair_wise_add(label, current_num_of_valid_data_per_cat)
+                if pair_wise_se(temp, num_of_valid_data_per_cat) is True:
+                    valid_data.append([sentence, label])
+                    current_num_of_valid_data_per_cat = temp
+                else:
+                    train_data.append([sentence, label])
             return train_data, categories, valid_data
         else:
             return processed_data

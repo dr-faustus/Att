@@ -3,10 +3,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from torch.autograd import Variable
-from torch.utils.data import dataset, dataloader
+from torch.utils.data import dataloader
 from torch.backends import cudnn
 import random
 from tqdm import *
+import decimal
+from copy import deepcopy
+
+
+def frange(x, y, jump):
+  while x < y:
+    yield x
+    x += jump
 
 
 def squash(tensor, dim=-1):
@@ -165,7 +173,7 @@ class VanillaAttention(nn.Module):
 
 class Net:
     def __init__(self, epochs, train_loader, test_loader, validation_loader, learning_rate, model_type,
-                 num_of_topics=6, hidden_size=150, input_size=300,
+                 mode, min_delta, patience, num_of_topics=6, hidden_size=150, input_size=300,
                  topic_hidden_size=20, drop_out_prob=0.6):
         if model_type == 'topic-attention':
             self.model = TopicAttention(num_of_topics=num_of_topics, hidden_size=hidden_size, input_size=input_size,
@@ -186,6 +194,7 @@ class Net:
         # self.loss_function = nn.MultiMarginLoss()
         # self.validate_loss = nn.MultiMarginLoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
+        self.early_stopping = EarlyStopping(mode, min_delta, patience)
         # lr_decay = lambda epoch: 1 / (1 + epoch * 0.2)
         # self.optimizer = torch.optim.SGD(self.model.parameters(), lr=learning_rate, momentum=0.9)
         # self.scheduler = torch.optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda=lr_decay)
@@ -241,21 +250,26 @@ class Net:
 
             # print('Epoch [%d/%d], Avr Loss: %.4f, Avr Reg Loss: %.4f'
             #       % (epoch + 1, self.num_epochs, sum(total_loss) / len(total_loss), sum(reg_total_loss) / len(reg_total_loss)))
-            if validate is False:
-                f1 = self.test()
-                print(f1)
-                if f1[0] > best_result[0]:
-                    best_result[0] = f1[0]
-                    best_result[1] = epoch
+            if validate is True:
+                valid_loss = self.validate()
+                validate_loss.append(valid_loss)
+                train_loss.append(float(sum(total_loss) / len(total_loss)))
             else:
                 valid_loss = self.validate()
                 validate_loss.append(valid_loss)
                 train_loss.append(float(sum(total_loss) / len(total_loss)))
-                # print(valid_loss)
+                if self.early_stopping.step(valid_loss, deepcopy(self.model)) is True:
+                    print('Early stopping at ' + str(epoch))
+                    self.model = self.early_stopping.best_model
+                    result = self.test()
+                    print('F1: ' + str(result[0]))
+                    print('P: ' + str(result[1]))
+                    print('R: ' + str(result[2]))
+                    break
         if validate is True:
             return train_loss, validate_loss
         else:
-            return self.test()
+            return result
 
     def test(self):
         self.model.eval()
@@ -273,8 +287,62 @@ class Net:
             output = output.squeeze(0)
             pred_labels.append(list(output))
             true_labels.append(label)
+        best_result = [0.0, 0, 0]
+
+        threshold = self.find_best_threshold()
+        print('Best threshold value: ' + str(threshold))
+        TP = 0
+        FP = 0
+        FN = 0
+        for idx in range(len(pred_labels)):
+            if idx == 12:
+                continue
+            output = pred_labels[idx]
+            label = true_labels[idx]
+            for i in range(len(list(output))):
+                if float(output[i]) >= threshold:
+                    if i in label:
+                        TP += 1
+                    else:
+                        FP += 1
+                else:
+                    if i in label:
+                        FN += 1
+        try:
+            precision = TP / (TP + FP)
+            recall = TP / (TP + FN)
+            f1 = 2 * (precision * recall) / (precision + recall)
+        except ZeroDivisionError:
+            f1 = 0.0
+            precision = 0.0
+            recall = 0.0
+        if f1 > best_result[0]:
+            best_result[0] = f1
+            best_result[1] = precision
+            best_result[2] = recall
+
+        return best_result
+
+    def find_best_threshold(self):
+        self.model.eval()
+        pred_labels = []
+        true_labels = []
         best_result = [0.0, 0]
-        for threshold in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]:
+        data_loader = dataloader.DataLoader(dataset=self.validation_loader,
+                                            batch_size=1,
+                                            shuffle=False,
+                                            num_workers=0)
+        for datas, labels in data_loader:
+            datas = self.to_var(datas)
+            labels = self.to_var(labels)
+            if self.model_type == 'topic-attention':
+                outputs, _ = self.model(datas, validate=True)
+            elif self.model_type == 'vanilla-attention':
+                outputs = self.model(datas, validate=True)
+            output = outputs.squeeze(0)
+            pred_labels.append(list(output))
+            true_labels.append(labels.squeeze(0).squeeze(0))
+        for threshold in list(frange(0, 1, decimal.Decimal('0.01'))):
             TP = 0
             FP = 0
             FN = 0
@@ -285,12 +353,12 @@ class Net:
                 label = true_labels[idx]
                 for i in range(len(list(output))):
                     if float(output[i]) >= threshold:
-                        if i in label:
+                        if int(label[i]) == 1:
                             TP += 1
                         else:
                             FP += 1
                     else:
-                        if i in label:
+                        if int(label[i]) == 1:
                             FN += 1
             try:
                 precision = TP / (TP + FP)
@@ -301,8 +369,7 @@ class Net:
             if f1 > best_result[0]:
                 best_result[0] = f1
                 best_result[1] = threshold
-
-        return best_result
+        return best_result[1]
 
     def validate(self):
         self.model.eval()
@@ -319,5 +386,51 @@ class Net:
             elif self.model_type == 'vanilla-attention':
                 outputs = self.model(datas, validate=True)
             valid_loss += self.validate_loss(outputs, labels.squeeze(1))
-        valid_loss = float(valid_loss.data[0])
+        valid_loss = float(valid_loss.data)
         return valid_loss
+
+
+class EarlyStopping(object):
+    def __init__(self, mode='min', min_delta=0, patience=10):
+        self.mode = mode
+        self.min_delta = min_delta
+        self.patience = patience
+        self.best = None
+        self.num_bad_epochs = 0
+        self.is_better = None
+        self._init_is_better(mode, min_delta)
+
+        if patience == 0:
+            self.is_better = lambda a, b: True
+
+    def step(self, metrics, model):
+        if self.best is None:
+            self.best = metrics
+            self.best_model = model
+            return False
+
+        if np.isnan(metrics):
+            return True
+
+        if self.is_better(metrics, self.best):
+            self.num_bad_epochs = 0
+            self.best = metrics
+            self.best_model = model
+        else:
+            self.num_bad_epochs += 1
+
+        if self.num_bad_epochs >= self.patience:
+            return True
+
+        return False
+
+    def _init_is_better(self, mode, min_delta):
+        if mode not in {'min', 'max'}:
+            raise ValueError('mode ' + mode + ' is unknown!')
+        if mode == 'min':
+            self.is_better = lambda a, best: a < best - min_delta
+        if mode == 'max':
+            self.is_better = lambda a, best: a > best + min_delta
+
+    def return_best_model(self):
+        return self.best_model
