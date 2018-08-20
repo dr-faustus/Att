@@ -11,6 +11,10 @@ fontP.set_size('small')
 
 plt.switch_backend('agg')
 
+early_stopping_mode = 'min'
+early_stopping_min_delta = 0
+early_stopping_patience = 10
+
 
 def batch_size_validation_plot(num_of_epochs, dataset_name, learning_rate, batch_list, model_type,
                                num_of_topics, hidden_size, topic_hidden_size, drop_out_prob):
@@ -19,6 +23,7 @@ def batch_size_validation_plot(num_of_epochs, dataset_name, learning_rate, batch
     train_loader, validation_loader, test_loader = get_data_loaders(0.1, dataset_name=dataset_name)
     for batch_size in batch_list:
         net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate, model_type,
+                  early_stopping_mode, early_stopping_min_delta, early_stopping_patience,
                   num_of_topics=num_of_topics, hidden_size=hidden_size, input_size=300,
                   topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
         gc.collect()
@@ -35,6 +40,7 @@ def num_of_topics_validation(num_of_epochs, dataset_name, learning_rate, batch_s
     train_loader, validation_loader, test_loader = get_data_loaders(0.1, dataset_name=dataset_name)
     for num_of_topics in num_of_topics_list:
         net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate, model_type,
+                  early_stopping_mode, early_stopping_min_delta, early_stopping_patience,
                   num_of_topics=num_of_topics, hidden_size=hidden_size, input_size=300,
                   topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
         gc.collect()
@@ -44,126 +50,70 @@ def num_of_topics_validation(num_of_epochs, dataset_name, learning_rate, batch_s
         pickle.dump(result, fp)
 
 
-def number_of_word_embedding_validation_plot(num_of_epochs, word_embedding_list, learning_rate, batch_size, rho, k):
-    fig, ax = plt.subplots()
-    for word_embedding in word_embedding_list:
-        train_loader, validation_loader, test_loader = prepare_data_set(0.1, word_embedding)
-        net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate)
-        train_loss, validation_loss = net.train(batch_size=batch_size)
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), train_loss, '--', label=str(word_embedding)+' train')
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), validation_loss, '-', label=str(word_embedding)+' validation')
-
-    legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large', prop=fontP)
-    legend.get_frame().set_facecolor('#FFFFFF')
-    plt.savefig('word_embeddings')
-
-
-def rho_validation_plot(num_of_epochs, word_embedding, learning_rate, batch_size, rho_list, k):
-    fig, ax = plt.subplots()
-    for rho in rho_list:
-        train_loader, validation_loader, test_loader = prepare_data_set(0.1, word_embedding)
-        net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate)
-        train_loss, validation_loss = net.train(batch_size=batch_size)
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), train_loss, '--', label=str(rho) + ' train')
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), validation_loss, '-', label=str(rho) + ' validation')
-    legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large', prop=fontP)
-    legend.get_frame().set_facecolor('#FFFFFF')
-    plt.savefig('rho')
-
-
-def k_validation_plot(num_of_epochs, word_embedding, learning_rate, batch_size):
-    fig, ax = plt.subplots()
-    for k in k_list:
-        train_loader, validation_loader, test_loader = prepare_data_set(0.1, word_embedding)
-        net = Net(num_of_epochs, train_loader, validation_loader, test_loader, learning_rate)
-        train_loss, validation_loss = net.train(batch_size=batch_size)
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), train_loss, '--', label=str(k) + ' train')
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), validation_loss, '-', label=str(k) + ' validation')
-    legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large', prop=fontP)
-    legend.get_frame().set_facecolor('#FFFFFF')
-    plt.savefig('k')
-
-
-def num_of_topics_validation_plot(num_of_epochs, word_embedding, learning_rate, batch_size, num_of_topics_list):
-    fig, ax = plt.subplots()
-    for num_of_topics in num_of_topics_list:
-        train_loader, validation_loader, test_loader = prepare_data_set(0.1, word_embedding)
-        net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate, num_of_topics=num_of_topics)
-        train_loss, validation_loss = net.train(batch_size=batch_size)
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), train_loss, '--', label=str(rho) + ' train')
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), validation_loss, '-', label=str(rho) + ' validation')
-    legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large', prop=fontP)
-    legend.get_frame().set_facecolor('#FFFFFF')
-    plt.savefig('topics')
-
-
-def learning_rate_validation_plot(num_of_epochs, word_embedding, learning_rate_list, batch_size, num_of_topics):
-    fig, ax = plt.subplots()
+def learning_rate_validation(num_of_epochs, dataset_name, learning_rate_list, batch_size, model_type,
+                             num_of_topics, hidden_size, topic_hidden_size, drop_out_prob):
+    result = dict()
+    dump_file_name = './val_results/learning_rate_valid_result_' + model_type + '_' + dataset_name
+    train_loader, validation_loader, test_loader = get_data_loaders(0.1, dataset_name=dataset_name)
     for learning_rate in learning_rate_list:
-        train_loader, validation_loader, test_loader = prepare_data_set(0.1, word_embedding)
-        net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate, num_of_topics=num_of_topics)
-        train_loss, validation_loss = net.train(batch_size=batch_size, validate=True)
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), train_loss, '--', label=str(batch_size) + ' train')
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), validation_loss, '-', label=str(batch_size) + ' validation')
-    legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large', prop=fontP)
-    legend.get_frame().set_facecolor('#FFFFFF')
-    plt.savefig('learning_rate')
-
-
-def hidden_size_validation_plot(num_of_epochs, word_embedding, learning_rate, batch_size, num_of_topics, hidden_size_list):
-    fig, ax = plt.subplots()
-    for hidden_size in hidden_size_list:
-        train_loader, validation_loader, test_loader = prepare_data_set(0.1, word_embedding)
-        net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate,
-                  num_of_topics=num_of_topics, hidden_size=hidden_size)
-        train_loss, validation_loss = net.train(batch_size=batch_size, validate=True)
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), train_loss, '--', label=str(batch_size) + ' train')
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), validation_loss, '-', label=str(batch_size) + ' validation')
-    legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large', prop=fontP)
-    legend.get_frame().set_facecolor('#FFFFFF')
-    plt.savefig('hidden_size')
-
-
-def context_size_validation_plot(num_of_epochs, word_embedding, learning_rate, batch_size, num_of_topics, hidden_size, context_size_list):
-    fig, ax = plt.subplots()
-    for context_size in context_size_list:
-        train_loader, validation_loader, test_loader = prepare_data_set(0.1, word_embedding)
-        net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate,
-                  num_of_topics=num_of_topics, hidden_size=hidden_size, context_size=context_size)
-        train_loss, validation_loss = net.train(batch_size=batch_size, validate=True)
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), train_loss, '--', label=str(batch_size) + ' train')
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), validation_loss, '-', label=str(batch_size) + ' validation')
-    legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large', prop=fontP)
-    legend.get_frame().set_facecolor('#FFFFFF')
-    plt.savefig('context_size')
-
-
-def topic_hidden_size_validation_plot(num_of_epochs, word_embedding, learning_rate, batch_size, num_of_topics, hidden_size, context_size, topic_hidden_size_list):
-    fig, ax = plt.subplots()
-    for topic_hidden_size in topic_hidden_size_list:
-        train_loader, validation_loader, test_loader = prepare_data_set(0.1, word_embedding)
-        net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate,
-                  num_of_topics=num_of_topics, hidden_size=hidden_size, context_size=context_size,
-                  topic_hidden_size=topic_hidden_size)
-        train_loss, validation_loss = net.train(batch_size=batch_size, validate=True)
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), train_loss, '--', label=str(batch_size) + ' train')
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), validation_loss, '-', label=str(batch_size) + ' validation')
-    legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large', prop=fontP)
-    legend.get_frame().set_facecolor('#FFFFFF')
-    plt.savefig('topic_hidden_size')
-
-
-def drop_out_validation_plot(num_of_epochs, word_embedding, learning_rate, batch_size, num_of_topics, hidden_size,
-                             context_size, topic_hidden_size, drop_out_prob_list):
-    fig, ax = plt.subplots()
-    for drop_out_prob in drop_out_prob_list:
-        train_loader, validation_loader, test_loader = prepare_data_set(0.1, word_embedding)
-        net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate,
-                  num_of_topics=num_of_topics, hidden_size=hidden_size, context_size=context_size,
+        net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate, model_type,
+                  early_stopping_mode, early_stopping_min_delta, early_stopping_patience,
+                  num_of_topics=num_of_topics, hidden_size=hidden_size, input_size=300,
                   topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
+        gc.collect()
         train_loss, validation_loss = net.train(batch_size=batch_size, validate=True)
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), train_loss, '--', label=str(batch_size) + ' train')
-        ax.plot(np.arange(1, num_of_epochs + 1, 1), validation_loss, '-', label=str(batch_size) + ' validation')
-    legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large', prop=fontP)
-    legend.get_frame().set_facecolor('#FFFFFF')
-    plt.savefig('drop_out')
+        result[batch_size] = [train_loss, validation_loss]
+    with open(dump_file_name, 'wb') as fp:
+        pickle.dump(result, fp)
+
+
+def hidden_size_validation(num_of_epochs, dataset_name, learning_rate, batch_size, model_type,
+                           num_of_topics, hidden_size_list, topic_hidden_size, drop_out_prob):
+    result = dict()
+    dump_file_name = './val_results/hidden_size_valid_result_' + model_type + '_' + dataset_name
+    train_loader, validation_loader, test_loader = get_data_loaders(0.1, dataset_name=dataset_name)
+    for hidden_size in hidden_size_list:
+        net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate, model_type,
+                  early_stopping_mode, early_stopping_min_delta, early_stopping_patience,
+                  num_of_topics=num_of_topics, hidden_size=hidden_size, input_size=300,
+                  topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
+        gc.collect()
+        train_loss, validation_loss = net.train(batch_size=batch_size, validate=True)
+        result[batch_size] = [train_loss, validation_loss]
+    with open(dump_file_name, 'wb') as fp:
+        pickle.dump(result, fp)
+
+
+def topic_hidden_size_validation(num_of_epochs, dataset_name, learning_rate, batch_size, model_type,
+                                 num_of_topics, hidden_size, topic_hidden_size_list, drop_out_prob):
+    result = dict()
+    dump_file_name = './val_results/topic_hidden_size_valid_result_' + model_type + '_' + dataset_name
+    train_loader, validation_loader, test_loader = get_data_loaders(0.1, dataset_name=dataset_name)
+    for topic_hidden_size in topic_hidden_size_list:
+        net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate, model_type,
+                  early_stopping_mode, early_stopping_min_delta, early_stopping_patience,
+                  num_of_topics=num_of_topics, hidden_size=hidden_size, input_size=300,
+                  topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
+        gc.collect()
+        train_loss, validation_loss = net.train(batch_size=batch_size, validate=True)
+        result[batch_size] = [train_loss, validation_loss]
+    with open(dump_file_name, 'wb') as fp:
+        pickle.dump(result, fp)
+
+
+def drop_out_porb_validation(num_of_epochs, dataset_name, learning_rate, batch_size, model_type,
+                             num_of_topics, hidden_size, topic_hidden_size, drop_out_prob_list):
+    result = dict()
+    dump_file_name = './val_results/drop_out_valid_result_' + model_type + '_' + dataset_name
+    train_loader, validation_loader, test_loader = get_data_loaders(0.1, dataset_name=dataset_name)
+    for drop_out_prob in drop_out_prob_list:
+        net = Net(num_of_epochs, train_loader, test_loader, validation_loader, learning_rate, model_type,
+                  early_stopping_mode, early_stopping_min_delta, early_stopping_patience,
+                  num_of_topics=num_of_topics, hidden_size=hidden_size, input_size=300,
+                  topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
+        gc.collect()
+        train_loss, validation_loss = net.train(batch_size=batch_size, validate=True)
+        result[batch_size] = [train_loss, validation_loss]
+    with open(dump_file_name, 'wb') as fp:
+        pickle.dump(result, fp)
+

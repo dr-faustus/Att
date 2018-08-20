@@ -29,7 +29,6 @@ batch_size_list = [16, 32, 64, 128, 256]
 num_of_topics_list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 learning_rate_list = [0.01, 0.005, 0.001, 0.0005, 0.0001]
 hidden_size_list = [50, 100, 150, 200, 300]
-context_size_list = [100, 200, 300, 500]
 topic_hidden_size_list = [5, 10, 20, 50, 100]
 drop_out_prob_list = [0.2, 0.4, 0.5, 0.6, 0.7]
 
@@ -39,7 +38,6 @@ batch_size = 128
 num_of_topics = 15
 hidden_size = 150
 input_size = 300
-context_size = 300
 topic_hidden_size = 20
 drop_out_prob = 0.6
 
@@ -50,10 +48,10 @@ early_stopping_mode = 'min'
 early_stopping_min_delta = 0
 early_stopping_patience = 10
 
-# num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type,
-#                          num_of_topics_list, hidden_size, topic_hidden_size, drop_out_prob)
+num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type,
+                         num_of_topics_list, hidden_size, topic_hidden_size, drop_out_prob)
 # dataset_name = 'sem-2016'
 # num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type,
 #                          num_of_topics_list, hidden_size, topic_hidden_size, drop_out_prob)
 #
-test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience)
+# test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience)

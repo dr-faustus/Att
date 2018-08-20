@@ -138,7 +138,6 @@ class SimpleDataset:
                             categories.append(str(dict['category']))
                         labels[self.category_label_num[str(dict['category'])]] = 1.0
                         num_of_data_per_cat[self.category_label_num[dict['category']]] += 1
-                        num_of_data_per_label[self.category_label_num[str(dict['category'])]] += 1
                     processed_data.append([sentence, labels])
                 else:
                     test_sentence_categories = []
