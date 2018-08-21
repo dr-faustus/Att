@@ -23,6 +23,23 @@ def squash(tensor, dim=-1):
     return scale * tensor / torch.sqrt(squared_norm)
 
 
+def get_sentence_weights(model_path, sentence):
+    num_of_topics = 15
+    # hidden_size = 150
+    # input_size = 300
+    # topic_hidden_size = 20
+    # drop_out_prob = 0.6
+    model = TopicAttention(num_of_topics=num_of_topics, classification_size=12)
+    model.load_state_dict(torch.load(model_path))
+    model.eval()
+    sentence = Variable(torch.from_numpy(sentence)).float()
+    if torch.has_cudnn:
+        sentence.cuda()
+    weights, probs = model.return_weights(sentence.unsqueeze(0))
+    return weights, probs
+
+
+
 class topkCE(nn.Module):
     def __init__(self, k=0.7):
         super(topkCE, self).__init__()
@@ -94,14 +111,9 @@ class TopicAttention(nn.Module):
         x = self.drop_out(x)
         x, hidden = self.rnn(x)
         x = self.drop_out(x)
-        context_values = None
         x_ = None
         for i in range(self.num_of_topics):
             context = torch.stack([self.attn_context[i]] * x.size(0))
-            if context_values is None:
-                context_values = context.unsqueeze(1)
-            else:
-                context_values = torch.cat((context_values, context.unsqueeze(1)), dim=1)
             energy = torch.bmm(x, context.unsqueeze(-1))
             probs = F.softmax(energy, dim=1)
             out = torch.bmm(x.transpose(1, 2), probs).squeeze(-1)
@@ -112,6 +124,8 @@ class TopicAttention(nn.Module):
             else:
                 x_ = torch.cat((x_, out), dim=1)
         x = torch.zeros(x_.size(0), self.classification_size)
+        if torch.has_cudnn:
+            x = x.cuda()
         for i in range(self.classification_size):
             temp = self.linear_aspect[i](x_)
             temp = squash(temp)
@@ -136,6 +150,21 @@ class TopicAttention(nn.Module):
             else:
                 init_input_flat = torch.cat((init_input_flat, init_input[:, i]), dim=1)
         return self.reconstruction_loss_function(recon_input, init_input_flat)
+
+    def return_weights(self, x):
+        weights = []
+        existance = []
+        x, hidden = self.rnn(x)
+        for i in range(self.num_of_topics):
+            context = torch.stack([self.attn_context[i]] * x.size(0))
+            energy = torch.bmm(x, context.unsqueeze(-1))
+            probs = F.softmax(energy, dim=1)
+            weights.append(probs)
+            out = torch.bmm(x.transpose(1, 2), probs).squeeze(-1)
+            out = self.topic_hidden[i](out)
+            out = squash(out)
+            existance.append(torch.norm(out[0]))
+        return weights, existance
 
 
 class VanillaAttention(nn.Module):
@@ -269,6 +298,7 @@ class Net:
         if validate is True:
             return train_loss, validate_loss
         else:
+            torch.save(self.model.state_dict(), './' + self.model_type)
             return result
 
     def test(self):

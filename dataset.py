@@ -3,8 +3,8 @@ import numpy as np
 import xml.etree.ElementTree as ET
 from gensim import models
 from torch.utils.data import dataset
-from allennlp.modules.elmo import Elmo, batch_to_ids
-import allennlp.commands.elmo as E
+# from allennlp.modules.elmo import Elmo, batch_to_ids
+# import allennlp.commands.elmo as E
 from tqdm import tqdm
 import pickle
 
@@ -115,6 +115,10 @@ class SimpleDataset:
         for i in range(len(processed_sentences)):
             processed_sentences[i] = processed_sentences[i].split()
         num_of_data_per_label = [0] * len(self.category_label_num.keys())
+        if is_train:
+            self.original_sentence = []
+            self.valid_original_sentence = []
+            self.train_original_sentence = []
         valid_data = []
         valid_size = 0
         train_data = []
@@ -129,8 +133,6 @@ class SimpleDataset:
                 pass
             if len(unprocessed_data[i]) > 1:
                 if is_train:
-                    if len(unprocessed_data[i][1]) == 0:
-                        continue
                     labels = len(self.category_label_num.keys()) * [0]
                     for opinions in unprocessed_data[i][1]:
                         dict = opinions.attrib
@@ -138,6 +140,7 @@ class SimpleDataset:
                             categories.append(str(dict['category']))
                         labels[self.category_label_num[str(dict['category'])]] = 1.0
                         num_of_data_per_cat[self.category_label_num[dict['category']]] += 1
+                    self.original_sentence.append(unprocessed_data[i][0].text)
                     processed_data.append([sentence, labels])
                 else:
                     test_sentence_categories = []
@@ -149,15 +152,17 @@ class SimpleDataset:
         if is_train:
             num_of_valid_data_per_cat = [int(num_of_data_per_cat[i] * self.validation_percentage) for i in range(len(num_of_data_per_cat))]
             current_num_of_valid_data_per_cat = [0] * len(self.category_label_num.keys())
-            for item in processed_data:
+            for idx, item in enumerate(processed_data):
                 sentence = item[0]
                 label = item[1]
                 temp = pair_wise_add(label, current_num_of_valid_data_per_cat)
                 if pair_wise_se(temp, num_of_valid_data_per_cat) is True:
                     valid_data.append([sentence, label])
+                    self.valid_original_sentence.append(self.original_sentence[idx])
                     current_num_of_valid_data_per_cat = temp
                 else:
                     train_data.append([sentence, label])
+                    self.train_original_sentence.append(self.original_sentence[idx])
             return train_data, categories, valid_data
         else:
             return processed_data
@@ -285,7 +290,7 @@ class DataLoader(dataset.Dataset):
         if self.padding is True:
             while len(sentence_rep) < self.sentence_length:
                 sentence_rep.append(np.array(np.zeros(self.embedding_len), dtype='float32'))
-        sentence_rep = np.array(sentence_rep, dtype='float64')
+        sentence_rep = np.array(sentence_rep, dtype='float32')
         label = np.array(self.labels[item])
         return sentence_rep, np.array([label])
 

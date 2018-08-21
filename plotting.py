@@ -45,7 +45,7 @@ def num_of_topics_validation(num_of_epochs, dataset_name, learning_rate, batch_s
                   topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
         gc.collect()
         train_loss, validation_loss = net.train(batch_size=batch_size, validate=True)
-        result[batch_size] = [train_loss, validation_loss]
+        result[num_of_topics] = [train_loss, validation_loss]
     with open(dump_file_name, 'wb') as fp:
         pickle.dump(result, fp)
 
@@ -62,7 +62,7 @@ def learning_rate_validation(num_of_epochs, dataset_name, learning_rate_list, ba
                   topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
         gc.collect()
         train_loss, validation_loss = net.train(batch_size=batch_size, validate=True)
-        result[batch_size] = [train_loss, validation_loss]
+        result[learning_rate] = [train_loss, validation_loss]
     with open(dump_file_name, 'wb') as fp:
         pickle.dump(result, fp)
 
@@ -79,7 +79,7 @@ def hidden_size_validation(num_of_epochs, dataset_name, learning_rate, batch_siz
                   topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
         gc.collect()
         train_loss, validation_loss = net.train(batch_size=batch_size, validate=True)
-        result[batch_size] = [train_loss, validation_loss]
+        result[hidden_size] = [train_loss, validation_loss]
     with open(dump_file_name, 'wb') as fp:
         pickle.dump(result, fp)
 
@@ -96,7 +96,7 @@ def topic_hidden_size_validation(num_of_epochs, dataset_name, learning_rate, bat
                   topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
         gc.collect()
         train_loss, validation_loss = net.train(batch_size=batch_size, validate=True)
-        result[batch_size] = [train_loss, validation_loss]
+        result[topic_hidden_size] = [train_loss, validation_loss]
     with open(dump_file_name, 'wb') as fp:
         pickle.dump(result, fp)
 
@@ -113,7 +113,17 @@ def drop_out_porb_validation(num_of_epochs, dataset_name, learning_rate, batch_s
                   topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
         gc.collect()
         train_loss, validation_loss = net.train(batch_size=batch_size, validate=True)
-        result[batch_size] = [train_loss, validation_loss]
+        result[drop_out_prob] = [train_loss, validation_loss]
     with open(dump_file_name, 'wb') as fp:
         pickle.dump(result, fp)
 
+
+def read_plot():
+    src = './val_results/num_of_topics_valid_result_topic-attention_sem-2014'
+    with open(src, 'rb') as fp:
+        result = pickle.load(fp)
+    print(result.keys())
+
+
+if __name__ == '__main__':
+    read_plot()
