@@ -3,6 +3,7 @@ from dataset import get_data_loaders
 from dataset import SimpleDataset
 from dataset import DataLoader
 from model import get_sentence_weights
+from model import examine_context_vectors
 
 fontP = FontProperties()
 fontP.set_size('small')
@@ -49,7 +50,7 @@ drop_out_prob_list = [0.2, 0.4, 0.5, 0.6, 0.7]
 learning_rate = 0.001
 batch_size = 128
 
-num_of_topics = 15
+num_of_topics = 11
 hidden_size = 150
 input_size = 300
 topic_hidden_size = 20
@@ -62,9 +63,10 @@ early_stopping_mode = 'min'
 early_stopping_min_delta = 0
 early_stopping_patience = 10
 
-num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics_list, hidden_size, topic_hidden_size, drop_out_prob)
-dataset_name = 'sem-2014'
-num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics_list, hidden_size, topic_hidden_size, drop_out_prob)
-#
-# test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience)
-# sentence_weight_examine(9)
+# num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics_list, hidden_size, topic_hidden_size, drop_out_prob)
+# dataset_name = 'sem-2014'
+# num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics_list, hidden_size, topic_hidden_size, drop_out_prob)
+
+test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience)
+# sentence_weight_examine(6)
+# examine_context_vectors(15, './topic-attention')

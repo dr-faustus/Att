@@ -9,6 +9,7 @@ import random
 from tqdm import *
 import decimal
 from copy import deepcopy
+from dataset import return_similar_word_to_vector
 
 
 def frange(x, y, jump):
@@ -23,15 +24,26 @@ def squash(tensor, dim=-1):
     return scale * tensor / torch.sqrt(squared_norm)
 
 
+def load_saved_model(num_of_topics, model_path):
+    model = TopicAttention(num_of_topics=num_of_topics, classification_size=12)
+    model.load_state_dict(torch.load(model_path))
+    model.eval()
+    return model
+
+
+def examine_context_vectors(num_of_topics, model_path):
+    model = load_saved_model(num_of_topics, model_path)
+    for vector in model.attn_context:
+        print(return_similar_word_to_vector(vector.detach().numpy()))
+
+
 def get_sentence_weights(model_path, sentence):
     num_of_topics = 15
     # hidden_size = 150
     # input_size = 300
     # topic_hidden_size = 20
     # drop_out_prob = 0.6
-    model = TopicAttention(num_of_topics=num_of_topics, classification_size=12)
-    model.load_state_dict(torch.load(model_path))
-    model.eval()
+    model = load_saved_model(num_of_topics, model_path)
     sentence = Variable(torch.from_numpy(sentence)).float()
     if torch.has_cudnn:
         sentence.cuda()

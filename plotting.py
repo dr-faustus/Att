@@ -5,6 +5,7 @@ from matplotlib.font_manager import FontProperties
 import gc
 from dataset import get_data_loaders
 import pickle
+from matplotlib.pyplot import figure
 
 fontP = FontProperties()
 fontP.set_size('small')
@@ -119,10 +120,21 @@ def drop_out_porb_validation(num_of_epochs, dataset_name, learning_rate, batch_s
 
 
 def read_plot():
-    src = './val_results/num_of_topics_valid_result_topic-attention_sem-2014'
+    src = './val_results/num_of_topics_valid_result_topic-attention_sem-2016'
     with open(src, 'rb') as fp:
         result = pickle.load(fp)
-    print(result.keys())
+    fig, ax = plt.subplots()
+    fig.set_size_inches(8, 8, forward=True)
+    num_of_epoches = 60
+    for num_of_topics in result.keys():
+        # print(result[num_of_topics][0])
+        # if num_of_topics % 2 == 0:
+        ax.plot(np.arange(1, num_of_epoches + 1, 1), result[num_of_topics][1][:num_of_epoches], '-', label=str(num_of_topics) + ' valid loss')
+        avr_loss = sum(result[num_of_topics][1][:num_of_epoches]) / num_of_epoches
+        print(str(num_of_topics) + ': ' + str(avr_loss))
+    legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large', prop=fontP)
+    legend.get_frame().set_facecolor('#FFFFFF')
+    plt.savefig('temp')
 
 
 if __name__ == '__main__':
