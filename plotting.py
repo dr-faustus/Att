@@ -120,12 +120,12 @@ def drop_out_porb_validation(num_of_epochs, dataset_name, learning_rate, batch_s
 
 
 def read_plot():
-    src = './val_results/topic_hidden_size_valid_result_topic-attention_sem-2016'
+    src = './val_results/drop_out_valid_result_topic-attention_sem-2016'
     with open(src, 'rb') as fp:
         result = pickle.load(fp)
-    # fig, ax = plt.subplots()
-    # fig.set_size_inches(8, 8, forward=True)
-    num_of_epoches = 80
+    fig, ax = plt.subplots()
+    fig.set_size_inches(8, 8, forward=True)
+    num_of_epoches = 100
 
     num_of_topics_list = []
     valid_loss_list = []
@@ -133,14 +133,14 @@ def read_plot():
     for num_of_topics in result.keys():
         # print(result[num_of_topics][0])
         # if num_of_topics == 1 or num_of_topics == 4 or num_of_topics == 7:
-        # ax.plot(np.arange(1, num_of_epoches + 1, 1), result[num_of_topics][1][:num_of_epoches], '-', label=str(num_of_topics) + ' valid loss')
-        avr_loss = sum(result[num_of_topics][1][:num_of_epoches]) / num_of_epoches
-        num_of_topics_list.append(num_of_topics)
-        valid_loss_list.append(avr_loss)
+        ax.plot(np.arange(1, num_of_epoches + 1, 1), result[num_of_topics][1][:num_of_epoches], '-', label=str(num_of_topics) + ' valid loss')
+        # avr_loss = sum(result[num_of_topics][1][:num_of_epoches]) / num_of_epoches
+        # num_of_topics_list.append(num_of_topics)
+        # valid_loss_list.append(avr_loss)
         # print(str(num_of_topics) + ': ' + str(avr_loss))
-    plt.plot(num_of_topics_list, valid_loss_list, 'k', label='valid_loss_list')
-    # legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large', prop=fontP)
-    # legend.get_frame().set_facecolor('#FFFFFF')
+    # plt.plot(num_of_topics_list, valid_loss_list, 'k', label='valid_loss_list')
+    legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large', prop=fontP)
+    legend.get_frame().set_facecolor('#FFFFFF')
     plt.savefig('temp')
 
 
