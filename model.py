@@ -11,7 +11,8 @@ import decimal
 from copy import deepcopy
 from dataset import return_similar_word_to_vector
 
-torch.has_cudnn = False
+# torch.has_cudnn = False
+
 def frange(x, y, jump):
   while x < y:
     yield x
@@ -49,7 +50,6 @@ def get_sentence_weights(model_path, sentence):
         sentence.cuda()
     weights, probs = model.return_weights(sentence.unsqueeze(0))
     return weights, probs
-
 
 
 class topkCE(nn.Module):
@@ -100,7 +100,7 @@ class TopicAttention(nn.Module):
                           hidden_size=hidden_size,
                           num_layers=1, batch_first=True, bidirectional=True)
         self.attn_context = nn.Parameter(torch.randn(num_of_topics, hidden_size * 2))
-        self.mlp_WA_to_TopicEmbd = nn.ModuleList([
+        self.topic_hidden = nn.ModuleList([
                 nn.Linear(hidden_size * 2, topic_hidden_size) for _ in range(num_of_topics)])
         self.output_layer = nn.Linear(topic_hidden_size * num_of_topics, classification_size, bias=True)
 
@@ -119,7 +119,6 @@ class TopicAttention(nn.Module):
         self.reconstruction_loss_function = nn.MSELoss()
 
     def forward(self, x, validate=False):
-        init_input = x
         x = self.drop_out(x)
         x, hidden = self.rnn(x)
         x = self.drop_out(x)
@@ -127,23 +126,23 @@ class TopicAttention(nn.Module):
         for i in range(self.num_of_topics):
             context = torch.stack([self.attn_context[i]] * x.size(0))
             energy = torch.bmm(x, context.unsqueeze(-1))
-            alphas = F.softmax(energy, dim=1)
-            weighted_average = torch.bmm(x.transpose(1, 2), alphas).squeeze(-1)
-            out = self.mlp_WA_to_TopicEmbd[i](weighted_average)
-            squashed_topicEmbd = squash(out)
+            probs = F.softmax(energy, dim=1)
+            out = torch.bmm(x.transpose(1, 2), probs).squeeze(-1)
+            out = self.topic_hidden[i](out)
+            out = squash(out)
             if x_ is None:
-                x_ = squashed_topicEmbd
+                x_ = out
             else:
-                x_ = torch.cat((x_, squashed_topicEmbd), dim=1)
-        y = torch.zeros(x_.size(0), self.classification_size)
+                x_ = torch.cat((x_, out), dim=1)
+        x = torch.zeros(x_.size(0), self.classification_size)
         if torch.has_cudnn:
-            y = y.cuda()
+            x = x.cuda()
         for i in range(self.classification_size):
             output = self.linear_aspect[i](x_)
             output = squash(output)
-            y[:, i] = torch.norm(output, dim=-1)
+            x[:, i] = torch.norm(output, dim=-1)
 
-        return y, self.regularization_loss()
+        return x, self.regularization_loss()
 
     def regularization_loss(self):
         normalized_context_values = F.normalize(self.attn_context, dim=1)

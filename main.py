@@ -10,7 +10,7 @@ fontP.set_size('small')
 
 plt.switch_backend('agg')
 
-validation_percentage = 0.05
+validation_percentage = 0.1
 
 
 def validate(learning_rate, batch_size, dataset_name, model_type):
@@ -34,19 +34,20 @@ def sentence_weight_examine(idx):
     loader = DataLoader(data='train', simple_dataset=dataset, dataset_name='sem-2016', padding=False)
     f, ax = plt.subplots(figsize=(9, 6))
     flights_long = sns.load_dataset("flights")
+    print(flights_long)
     flights = flights_long.pivot("month", "year", "passengers")
-    print(flights)
+    # print(type(flights))
     exit()
     item = loader[idx][0]
     print(loader[idx][1])
     weights, existence = get_sentence_weights('./topic-attention', item)
     print(dataset.train_original_sentence[idx])
     print(list(weights))
-    print(list(existance))
+    print(list(existence))
 
 
 num_of_topics_list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
-hidden_size_list = [50, 100, 150, 200, 300]
+hidden_size_list = [16, 32, 64, 128, 256]
 topic_hidden_size_list = [4, 8, 16, 32, 64, 128]
 drop_out_prob_list = [0.2, 0.4, 0.5, 0.6, 0.7]
 
@@ -57,7 +58,7 @@ learning_rate_list = [0.01, 0.005, 0.001, 0.0005, 0.0001]
 learning_rate = 0.001
 batch_size = 128
 
-hidden_size = 150
+hidden_size = 128
 input_size = 300
 topic_hidden_size = 20
 drop_out_prob = 0.6
@@ -66,17 +67,21 @@ model_type = 'topic-attention'
 
 early_stopping_mode = 'min'
 early_stopping_min_delta = 0
-early_stopping_patience = 20
+early_stopping_patience = 10
 
 
 dataset_name = 'sem-2016'
 num_of_topics = 11
-# num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics_list, hidden_size, topic_hidden_size, drop_out_prob)
-hidden_size_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics, hidden_size_list, topic_hidden_size, drop_out_prob)
+# num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics_list, hidden_size,
+# topic_hidden_size, drop_out_prob)
+hidden_size_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics, hidden_size_list,
+topic_hidden_size, drop_out_prob)
 dataset_name = 'sem-2014'
-num_of_topics = 4
-# num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics_list, hidden_size, topic_hidden_size, drop_out_prob)
-hidden_size_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics, hidden_size_list, topic_hidden_size, drop_out_prob)
+num_of_topics = 6
+# num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics_list, hidden_size,
+# topic_hidden_size, drop_out_prob)
+hidden_size_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics, hidden_size_list,
+topic_hidden_size, drop_out_prob)
 # test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience)
 # sentence_weight_examine(6)
 # examine_context_vectors(15, './topic-attention')
