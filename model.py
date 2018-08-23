@@ -10,6 +10,7 @@ from tqdm import *
 import decimal
 from copy import deepcopy
 from dataset import return_similar_word_to_vector
+from torchviz import make_dot
 
 # torch.has_cudnn = False
 
@@ -120,6 +121,7 @@ class TopicAttention(nn.Module):
 
     def forward(self, x, validate=False):
         x = self.drop_out(x)
+        self.rnn.flatten_parameters()
         x, hidden = self.rnn(x)
         x = self.drop_out(x)
         x_ = None
@@ -295,10 +297,9 @@ class Net:
                 validate_loss.append(valid_loss)
                 train_loss.append(float(sum(total_loss) / len(total_loss)))
             else:
-                valid_loss = self.validate()
-                validate_loss.append(valid_loss)
+                valid_f1 = self.eval_validation_data()[0]
                 train_loss.append(float(sum(total_loss) / len(total_loss)))
-                if self.early_stopping.step(valid_loss, deepcopy(self.model)) is True:
+                if self.early_stopping.step(valid_f1, deepcopy(self.model)) is True:
                     print('Early stopping at ' + str(epoch))
                     self.model = self.early_stopping.best_model
                     result = self.test()
@@ -330,7 +331,7 @@ class Net:
             true_labels.append(label)
         best_result = [0.0, 0, 0]
 
-        threshold = self.find_best_threshold()
+        threshold = self.eval_validation_data()[1]
         print('Best threshold value: ' + str(threshold))
         TP = 0
         FP = 0
@@ -364,7 +365,7 @@ class Net:
 
         return best_result
 
-    def find_best_threshold(self):
+    def eval_validation_data(self):
         self.model.eval()
         pred_labels = []
         true_labels = []
@@ -410,7 +411,7 @@ class Net:
             if f1 > best_result[0]:
                 best_result[0] = f1
                 best_result[1] = threshold
-        return best_result[1]
+        return best_result
 
     def validate(self):
         self.model.eval()
@@ -475,3 +476,8 @@ class EarlyStopping(object):
 
     def return_best_model(self):
         return self.best_model
+
+
+if __name__ == '__main__':
+    x = Variable(torch.zeros())
+    make_dot()
