@@ -10,7 +10,6 @@ from tqdm import *
 import decimal
 from copy import deepcopy
 from dataset import return_similar_word_to_vector
-from torchviz import make_dot
 
 # torch.has_cudnn = False
 
@@ -297,9 +296,10 @@ class Net:
                 validate_loss.append(valid_loss)
                 train_loss.append(float(sum(total_loss) / len(total_loss)))
             else:
-                valid_f1 = self.eval_validation_data()[0]
+                # valid_f1 = self.eval_validation_data()[0]
+                valid_loss = self.validate()
                 train_loss.append(float(sum(total_loss) / len(total_loss)))
-                if self.early_stopping.step(valid_f1, deepcopy(self.model)) is True:
+                if self.early_stopping.step(valid_loss, deepcopy(self.model)) is True:
                     print('Early stopping at ' + str(epoch))
                     self.model = self.early_stopping.best_model
                     result = self.test()
