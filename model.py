@@ -371,7 +371,7 @@ class Net:
         true_labels = []
         best_result = [0.0, 0]
         data_loader = dataloader.DataLoader(dataset=self.validation_loader,
-                                            batch_size=1,
+                                            batch_size=len(self.validation_loader),
                                             shuffle=False,
                                             num_workers=0)
         for datas, labels in data_loader:
@@ -381,9 +381,11 @@ class Net:
                 outputs, _ = self.model(datas, validate=True)
             elif self.model_type == 'vanilla-attention':
                 outputs = self.model(datas, validate=True)
-            output = outputs.squeeze(0)
-            pred_labels.append(list(output))
-            true_labels.append(labels.squeeze(0).squeeze(0))
+            # output = outputs.squeeze(0)
+            pred_labels = outputs
+            true_labels = labels.squeeze(1)
+        pred_labels = list(pred_labels)
+        true_labels = list(true_labels)
         for threshold in list(frange(0, 1, decimal.Decimal('0.01'))):
             TP = 0
             FP = 0
