@@ -179,6 +179,99 @@ class TopicAttention(nn.Module):
         return weights, existance
 
 
+class TopicAttentionWithoutSquash(nn.Module):
+    def __init__(self, num_of_topics=6, hidden_size=150, input_size=300, classification_size=5, topic_hidden_size=20,
+                 drop_out_prob=0.6, sentence_length=65):
+        super(TopicAttentionWithoutSquash, self).__init__()
+        torch.manual_seed(0)
+        np.random.seed(0)
+        if torch.has_cudnn:
+            torch.cuda.manual_seed(0)
+        cudnn.benchmark = True
+        random.seed(0)
+        self.num_of_topics = num_of_topics
+        self.sentence_length = sentence_length
+        self.classification_size = classification_size
+        self.topic_hidden_size = topic_hidden_size
+        self.drop_out = nn.Dropout(p=drop_out_prob)
+
+        self.rnn = nn.GRU(input_size=input_size,
+                          hidden_size=hidden_size,
+                          num_layers=1, batch_first=True, bidirectional=True)
+        self.attn_context = nn.Parameter(torch.randn(num_of_topics, hidden_size * 2))
+        self.topic_hidden = nn.ModuleList([
+                nn.Linear(hidden_size * 2, topic_hidden_size) for _ in range(num_of_topics)])
+        self.output_layer = nn.Linear(topic_hidden_size * num_of_topics, classification_size, bias=True)
+
+        self.attn_aspect_context = nn.Parameter(torch.randn(classification_size, topic_hidden_size))
+        self.linear_aspect = nn.ModuleList([nn.Linear(topic_hidden_size * num_of_topics, 2 * topic_hidden_size)
+                                            for _ in range(self.classification_size)])
+
+        self.reconstruction_layer = nn.Sequential(
+            nn.Linear(topic_hidden_size * num_of_topics, 2 ** 10),
+            nn.ReLU(),
+            nn.Linear(2 ** 10, 2 ** 12),
+            nn.ReLU(),
+            nn.Linear(2 ** 12, sentence_length * input_size),
+            nn.Sigmoid()
+        )
+        self.reconstruction_loss_function = nn.MSELoss()
+
+    def forward(self, x, validate=False):
+        x = self.drop_out(x)
+        self.rnn.flatten_parameters()
+        x, hidden = self.rnn(x)
+        x = self.drop_out(x)
+        x_ = None
+        for i in range(self.num_of_topics):
+            context = torch.stack([self.attn_context[i]] * x.size(0))
+            energy = torch.bmm(x, context.unsqueeze(-1))
+            probs = F.softmax(energy, dim=1)
+            out = torch.bmm(x.transpose(1, 2), probs).squeeze(-1)
+            out = self.topic_hidden[i](out)
+            out = F.relu(out)
+            if x_ is None:
+                x_ = out
+            else:
+                x_ = torch.cat((x_, out), dim=1)
+        x = self.output_layer(x_)
+        x = torch.sigmoid(x)
+        return x, self.regularization_loss()
+
+    def regularization_loss(self):
+        normalized_context_values = F.normalize(self.attn_context, dim=1)
+        reg_term = torch.mm(normalized_context_values, normalized_context_values.t())
+        identity = Variable(torch.eye(self.num_of_topics, self.num_of_topics))
+        if torch.has_cudnn:
+            identity = identity.cuda()
+        return torch.norm(reg_term - identity)
+
+    def reconstruction_loss(self, hidden_topic, init_input):
+        recon_input = self.reconstruction_layer(hidden_topic)
+        init_input_flat = None
+        for i in range(init_input.size(1)):
+            if init_input_flat is None:
+                init_input_flat = init_input[:, i]
+            else:
+                init_input_flat = torch.cat((init_input_flat, init_input[:, i]), dim=1)
+        return self.reconstruction_loss_function(recon_input, init_input_flat)
+
+    def return_weights(self, x):
+        weights = []
+        existance = []
+        x, hidden = self.rnn(x)
+        for i in range(self.num_of_topics):
+            context = torch.stack([self.attn_context[i]] * x.size(0))
+            energy = torch.bmm(x, context.unsqueeze(-1))
+            probs = F.softmax(energy, dim=1)
+            weights.append(probs)
+            out = torch.bmm(x.transpose(1, 2), probs).squeeze(-1)
+            out = self.topic_hidden[i](out)
+            out = squash(out)
+            existance.append(torch.norm(out[0]))
+        return weights, existance
+
+
 class VanillaAttention(nn.Module):
     def __init__(self, hidden_size=150, input_size=300, classification_size=5, drop_out_prob=0.6):
         super(VanillaAttention, self).__init__()
@@ -207,8 +300,8 @@ class VanillaAttention(nn.Module):
         x = self.hidden_layer(x)
         x = F.relu(x)
         x = self.output_layer(x)
-        x = F.softmax(x, dim=1)
-
+        # x = F.softmax(x, dim=1)
+        x = torch.sigmoid(x)
         return x
 
 
@@ -224,6 +317,11 @@ class Net:
         elif model_type == 'vanilla-attention':
             self.model = VanillaAttention(hidden_size=hidden_size, input_size=input_size,
                                           classification_size=train_loader.get_num_of_classes(), drop_out_prob=drop_out_prob)
+        elif model_type == 'topic-attention-without-squash':
+            self.model = TopicAttentionWithoutSquash(num_of_topics=num_of_topics, hidden_size=hidden_size, input_size=input_size,
+                                                     classification_size=train_loader.get_num_of_classes(),
+                                                     topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob,
+                                                     sentence_length=train_loader.get_sentence_length())
         if torch.has_cudnn:
             self.model.cuda()
         self.model_type = model_type
@@ -273,13 +371,13 @@ class Net:
 
                 labels = self.to_var(labels)
                 self.optimizer.zero_grad()
-                if self.model_type == 'topic-attention':
+                if self.model_type == 'topic-attention' or self.model_type == 'topic-attention-without-squash':
                     outputs, reg_loss = self.model(datas)
                 elif self.model_type == 'vanilla-attention':
                     outputs = self.model(datas)
 
                 label_loss = self.loss_function(outputs, labels.squeeze(1))
-                if self.model_type == 'topic-attention':
+                if self.model_type == 'topic-attention' or self.model_type == 'topic-attention-without-squash':
                     loss = label_loss + reg_loss
                 elif self.model_type == 'vanilla-attention':
                     loss = label_loss
@@ -321,7 +419,7 @@ class Net:
             data = self.to_var(data)
             data = data.unsqueeze(0)
             label = label
-            if self.model_type == 'topic-attention':
+            if self.model_type == 'topic-attention' or self.model_type == 'topic-attention-without-squash':
                 output, _ = self.model(data)
             elif self.model_type == 'vanilla-attention':
                 output = self.model(data)
@@ -377,7 +475,7 @@ class Net:
         for datas, labels in data_loader:
             datas = self.to_var(datas)
             labels = self.to_var(labels)
-            if self.model_type == 'topic-attention':
+            if self.model_type == 'topic-attention' or self.model_type == 'topic-attention-without-squash':
                 outputs, _ = self.model(datas, validate=True)
             elif self.model_type == 'vanilla-attention':
                 outputs = self.model(datas, validate=True)
@@ -425,7 +523,7 @@ class Net:
         for datas, labels in data_loader:
             datas = self.to_var(datas)
             labels = self.to_var(labels)
-            if self.model_type == 'topic-attention':
+            if self.model_type == 'topic-attention' or self.model_type == 'topic-attention-without-squash':
                 outputs, _ = self.model(datas, validate=True)
             elif self.model_type == 'vanilla-attention':
                 outputs = self.model(datas, validate=True)

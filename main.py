@@ -19,6 +19,21 @@ def validate(learning_rate, batch_size, dataset_name, model_type):
     train_loss, test_loss = net.train(batch_size=batch_size, validate=True)
 
 
+def plot_validations():
+    learning_rate_validation(300, dataset_name, learning_rate_list, batch_size, model_type,
+                             num_of_topics, hidden_size, topic_hidden_size, drop_out_prob)
+    batch_size_validation_plot(300, dataset_name, learning_rate, batch_size_list, model_type,
+                               num_of_topics, hidden_size, topic_hidden_size, drop_out_prob)
+    drop_out_porb_validation(300, dataset_name, learning_rate, batch_size, model_type,
+                             num_of_topics, hidden_size, topic_hidden_size, drop_out_prob_list)
+    num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics_list, hidden_size,
+                             topic_hidden_size, drop_out_prob)
+    hidden_size_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics, hidden_size_list,
+                           topic_hidden_size, drop_out_prob)
+    topic_hidden_size_validation(300, dataset_name, learning_rate, batch_size, model_type,
+                                 num_of_topics, hidden_size, topic_hidden_size_list, drop_out_prob)
+
+
 def test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience):
     train_loader, validation_loader, test_loader = get_data_loaders(validation_percentage, dataset_name)
     net = Net(300, train_loader, test_loader, validation_loader, learning_rate, model_type,
@@ -59,12 +74,11 @@ learning_rate = 0.001
 
 input_size = 300
 
-model_type = 'topic-attention'
-
-early_stopping_mode = 'max'
+early_stopping_mode = 'min'
 early_stopping_min_delta = 0
 
 
+model_type = 'vanilla-attention'
 dataset_name = 'sem-2016'
 num_of_topics = 11
 hidden_size = 128
@@ -73,39 +87,53 @@ drop_out_prob = 0.6
 batch_size = 128
 early_stopping_patience = 20
 test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience)
-# exit()
-# num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics_list, hidden_size,
-# topic_hidden_size, drop_out_prob)
-# hidden_size_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics, hidden_size_list,
-# topic_hidden_size, drop_out_prob)
-# topic_hidden_size_validation(300, dataset_name, learning_rate, batch_size, model_type,
-#                              num_of_topics, hidden_size, topic_hidden_size_list, drop_out_prob)
-# drop_out_porb_validation(300, dataset_name, learning_rate, batch_size, model_type,
-#                          num_of_topics, hidden_size, topic_hidden_size, drop_out_prob_list)
-# batch_size_validation_plot(300, dataset_name, learning_rate, batch_size_list, model_type,
-#                            num_of_topics, hidden_size, topic_hidden_size, drop_out_prob)
-# learning_rate_validation(300, dataset_name, learning_rate_list, batch_size, model_type,
-#                          num_of_topics, hidden_size, topic_hidden_size, drop_out_prob)
+
 dataset_name = 'sem-2014'
 num_of_topics = 6
+hidden_size = 128
+topic_hidden_size = 16
+drop_out_prob = 0.6
+batch_size = 128
+learning_rate = 0.001
+early_stopping_patience = 20
+test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience)
+
+model_type = 'topic-attention-without-squash'
+dataset_name = 'sem-2016'
+num_of_topics = 11
 hidden_size = 128
 topic_hidden_size = 32
 drop_out_prob = 0.6
 batch_size = 128
-learning_rate = 0.001
-early_stopping_patience = 15
-# learning_rate_validation(300, dataset_name, learning_rate_list, batch_size, model_type,
-#                          num_of_topics, hidden_size, topic_hidden_size, drop_out_prob)
-# batch_size_validation_plot(300, dataset_name, learning_rate, batch_size_list, model_type,
-#                            num_of_topics, hidden_size, topic_hidden_size, drop_out_prob)
-# drop_out_porb_validation(300, dataset_name, learning_rate, batch_size, model_type,
-#                          num_of_topics, hidden_size, topic_hidden_size, drop_out_prob_list)
-# num_of_topics_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics_list, hidden_size,
-# topic_hidden_size, drop_out_prob)
-# hidden_size_validation(300, dataset_name, learning_rate, batch_size, model_type, num_of_topics, hidden_size_list,
-# topic_hidden_size, drop_out_prob)
-# topic_hidden_size_validation(300, dataset_name, learning_rate, batch_size, model_type,
-#                              num_of_topics, hidden_size, topic_hidden_size_list, drop_out_prob)
+early_stopping_patience = 20
 test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience)
-# sentence_weight_examine(6)
-# examine_context_vectors(15, './topic-attention')
+
+dataset_name = 'sem-2014'
+num_of_topics = 6
+hidden_size = 128
+topic_hidden_size = 16
+drop_out_prob = 0.6
+batch_size = 128
+learning_rate = 0.001
+early_stopping_patience = 20
+test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience)
+
+model_type = 'topic-attention'
+dataset_name = 'sem-2016'
+num_of_topics = 11
+hidden_size = 128
+topic_hidden_size = 32
+drop_out_prob = 0.6
+batch_size = 128
+early_stopping_patience = 20
+test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience)
+
+dataset_name = 'sem-2014'
+num_of_topics = 6
+hidden_size = 128
+topic_hidden_size = 16
+drop_out_prob = 0.6
+batch_size = 128
+learning_rate = 0.001
+early_stopping_patience = 20
+test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience)
