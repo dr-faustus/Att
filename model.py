@@ -25,8 +25,10 @@ def squash(tensor, dim=-1):
     return scale * tensor / torch.sqrt(squared_norm)
 
 
-def load_saved_model(num_of_topics, model_path):
-    model = TopicAttention(num_of_topics=num_of_topics, classification_size=12)
+def load_saved_model(num_of_topics = 11, hidden_size = 128, topic_hidden_size = 32, drop_out_prob = 0.6,
+                     model_path='./topic-attention'):
+    model = TopicAttention(num_of_topics=num_of_topics, hidden_size=hidden_size,
+                                        topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
     model.load_state_dict(torch.load(model_path))
     model.eval()
     return model
@@ -39,12 +41,11 @@ def examine_context_vectors(num_of_topics, model_path):
 
 
 def get_sentence_weights(model_path, sentence):
-    num_of_topics = 15
     # hidden_size = 150
     # input_size = 300
     # topic_hidden_size = 20
     # drop_out_prob = 0.6
-    model = load_saved_model(num_of_topics, model_path)
+    model = load_saved_model()
     sentence = Variable(torch.from_numpy(sentence)).float()
     if torch.has_cudnn:
         sentence.cuda()
@@ -81,7 +82,7 @@ class topkCE(nn.Module):
 
 
 class TopicAttention(nn.Module):
-    def __init__(self, num_of_topics=6, hidden_size=150, input_size=300, classification_size=5, topic_hidden_size=20,
+    def __init__(self, num_of_topics=11, hidden_size=150, input_size=300, classification_size=12, topic_hidden_size=20,
                  drop_out_prob=0.6, sentence_length=65):
         super(TopicAttention, self).__init__()
         torch.manual_seed(0)
@@ -291,6 +292,7 @@ class VanillaAttention(nn.Module):
 
     def forward(self, x, validate=False):
         x = self.drop_out(x)
+        self.rnn.flatten_parameters()
         x, hidden = self.rnn(x)
         x = self.drop_out(x)
 

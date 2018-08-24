@@ -4,6 +4,10 @@ from dataset import SimpleDataset
 from dataset import DataLoader
 from model import get_sentence_weights
 import seaborn as sns
+import string
+from nltk.corpus import stopwords
+import pandas as pd
+import matplotlib.pyplot as plt
 
 fontP = FontProperties()
 fontP.set_size('small')
@@ -44,21 +48,69 @@ def test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mod
     print(result)
 
 
-def sentence_weight_examine(idx):
+def identity(x):
+    return x
+
+
+def sentence_weight_examine(sentence_idx):
     dataset = SimpleDataset(validation_percentage=validation_percentage, dataset_name=dataset_name)
-    loader = DataLoader(data='train', simple_dataset=dataset, dataset_name='sem-2016', padding=False)
-    f, ax = plt.subplots(figsize=(9, 6))
-    flights_long = sns.load_dataset("flights")
-    print(flights_long)
-    flights = flights_long.pivot("month", "year", "passengers")
+    loader = DataLoader(data='valid', simple_dataset=dataset, dataset_name='sem-2016', padding=False)
+    # for idx, sentence in enumerate(dataset.valid_original_sentence):
+    #     print(idx)
+    #     print(sentence)
+    #     print(dataset.valid_data[idx][0])
+    #     print(loader[idx][1])
+    # f, ax = plt.subplots(figsize=(9, 6))
+    # flights = flights_long.pivot("month", "year", "passengers")
     # print(type(flights))
-    exit()
-    item = loader[idx][0]
-    print(loader[idx][1])
+    # exit()
+    item = loader[sentence_idx][0]
+    preprocessed_sentence = dataset.valid_data[sentence_idx][0]
+    orig_sentence = dataset.valid_original_sentence[sentence_idx]
+    translator = str.maketrans(string.punctuation, ' ' * len(string.punctuation))
+    orig_sentence = orig_sentence.translate(translator)
+    orig_sentence = orig_sentence.split()
     weights, existence = get_sentence_weights('./topic-attention', item)
-    print(dataset.train_original_sentence[idx])
-    print(list(weights))
-    print(list(existence))
+
+    topics = []
+    for i in range(11):
+        topics.append(str(i + 1))
+    stopwords_english = set(stopwords.words('english'))
+    attention_weights = []
+    words = []
+    for idx, weight in enumerate(weights):
+        weight = list(weight.squeeze(0).squeeze(-1).detach().numpy())
+        temp = []
+        for word in orig_sentence:
+            words.append(word)
+            if word.lower() in stopwords_english:
+                temp.append(float(0.0))
+            else:
+                temp.append(float(weight[preprocessed_sentence.index(word.lower())]))
+        attention_weights.append(np.array(temp))
+    attention_weights = np.array(attention_weights)
+    attention_weights = attention_weights.transpose()
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+    sns.heatmap(attention_weights, annot=True, fmt=".2f", ax=ax, xticklabels=topics, yticklabels=orig_sentence,
+                cmap="YlGnBu", cbar_kws={'label': 'Attention Weights'})
+    plt.xlabel('Topics')
+    plt.ylabel('Sentence')
+    plt.savefig('./attention_heatmap/valid_sentence_#' + str(sentence_idx) + '_attention_weights')
+
+    topic_probs = []
+    for idx in range(len(existence)):
+        prob = float(existence[idx])
+        topic_probs.append(prob)
+    topic_probs = [np.array(topic_probs)]
+    topic_probs = np.array(topic_probs).transpose()
+    fig, ax = plt.subplots(figsize=(10, 10))
+    sns.heatmap(topic_probs, annot=True, fmt=".2f", ax=ax, xticklabels=['Topic Probabilities'], yticklabels=topics,
+                cmap="YlGnBu")
+    plt.savefig('./attention_heatmap/valid_sentence_#' + str(sentence_idx) + '_topic_probs')
+
+    # print(list(weights))
+    # print(list(existence))
 
 
 num_of_topics_list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
@@ -77,6 +129,22 @@ input_size = 300
 early_stopping_mode = 'min'
 early_stopping_min_delta = 0
 
+model_type = 'topic-attention'
+dataset_name = 'sem-2016'
+num_of_topics = 11
+hidden_size = 128
+topic_hidden_size = 32
+drop_out_prob = 0.6
+batch_size = 128
+early_stopping_patience = 20
+test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience)
+
+sentence_weight_examine(9)
+sentence_weight_examine(15)
+sentence_weight_examine(18)
+sentence_weight_examine(21)
+sentence_weight_examine(136)
+exit()
 
 model_type = 'vanilla-attention'
 dataset_name = 'sem-2016'
