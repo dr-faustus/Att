@@ -13,7 +13,7 @@ fontP = FontProperties()
 fontP.set_size('small')
 
 plt.switch_backend('agg')
-
+# for test
 validation_percentage = 0.1
 
 
