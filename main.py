@@ -130,20 +130,17 @@ early_stopping_mode = 'min'
 early_stopping_min_delta = 0
 
 model_type = 'topic-attention'
-dataset_name = 'sem-2016'
-num_of_topics = 11
+dataset_name = 'sem-2014'
+num_of_topics = 6
 hidden_size = 128
-topic_hidden_size = 32
+topic_hidden_size = 16
 drop_out_prob = 0.6
 batch_size = 128
 early_stopping_patience = 20
 test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience)
 
-sentence_weight_examine(9)
-sentence_weight_examine(15)
-sentence_weight_examine(18)
-sentence_weight_examine(21)
-sentence_weight_examine(136)
+for i in range(300):
+    sentence_weight_examine(i)
 exit()
 
 model_type = 'vanilla-attention'

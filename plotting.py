@@ -133,7 +133,7 @@ def read_plot():
     for num_of_topics in result.keys():
         # print(result[num_of_topics][0])
         if num_of_topics <= 32:
-            ax.plot(np.arange(1, num_of_epoches + 1, 1), result[num_of_topics][1][:num_of_epoches], '-', label=str(num_of_topics) + ' valid loss')
+            ax.plot(np.arange(1, num_of_epoches + 1, 1), result[num_of_topics][0][:num_of_epoches], '-', label=str(num_of_topics) + ' valid loss')
         # avr_loss = sum(result[num_of_topics][1][:num_of_epoches]) / num_of_epoches
         # num_of_topics_list.append(num_of_topics)
         # valid_loss_list.append(avr_loss)

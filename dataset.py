@@ -114,17 +114,14 @@ class SimpleDataset:
         num_of_data_per_cat = [0] * len(self.category_label_num.keys())
         for i in range(len(processed_sentences)):
             processed_sentences[i] = processed_sentences[i].split()
-        num_of_data_per_label = [0] * len(self.category_label_num.keys())
         if is_train:
             self.original_sentence = []
             self.valid_original_sentence = []
             self.train_original_sentence = []
         valid_data = []
-        valid_size = 0
         train_data = []
         for i in range(len(unprocessed_data)):
             sentence = processed_sentences[i]
-            sentence_categories = []
             sentence_attrib = unprocessed_data[i].attrib
             try:
                 if sentence_attrib['OutOfScope'] == 'TRUE':
@@ -173,6 +170,10 @@ class SimpleDataset:
         num_of_data_per_cat = [0] * len(self.category_label_num.keys())
         valid_data = []
         train_data = []
+        if is_train:
+            self.original_sentence = []
+            self.valid_original_sentence = []
+            self.train_original_sentence = []
         for i in range(len(processed_sentences)):
             processed_sentences[i] = processed_sentences[i].split()
         for i in range(len(unprocessed_data)):
@@ -184,6 +185,7 @@ class SimpleDataset:
                     aspect_cats = unprocessed_data[i][2]
                 if is_train:
                     labels = 5 * [0]
+                    self.original_sentence.append(unprocessed_data[i][0].text)
                     for opinions in aspect_cats:
                         dict = opinions.attrib
                         labels[self.category_label_num[str(dict['category'])]] = 1
@@ -211,15 +213,18 @@ class SimpleDataset:
             num_of_valid_data_per_cat = [int(num_of_data_per_cat[i] * self.validation_percentage) for i in
                                          range(len(num_of_data_per_cat))]
             current_num_of_valid_data_per_cat = [0] * len(self.category_label_num.keys())
-            for item in processed_data:
+            for idx, item in enumerate(processed_data):
                 sentence = item[0]
                 label = item[1]
                 temp = pair_wise_add(label, current_num_of_valid_data_per_cat)
                 if pair_wise_se(temp, num_of_valid_data_per_cat) is True:
                     valid_data.append([sentence, label])
+                    self.valid_original_sentence.append(self.original_sentence[idx])
                     current_num_of_valid_data_per_cat = temp
                 else:
+                    self.train_original_sentence.append(self.original_sentence[idx])
                     train_data.append([sentence, label])
+
             return train_data, categories, valid_data
         else:
             return processed_data
