@@ -7,6 +7,7 @@ from torch.utils.data import dataset
 # import allennlp.commands.elmo as E
 from tqdm import tqdm
 import pickle
+from copy import deepcopy
 
 
 def pair_wise_add(x, y):
@@ -24,6 +25,7 @@ def pair_wise_se(x, y):
 
 class SimpleDataset:
     def __init__(self, validation_percentage, dataset_name='sem-2014'):
+        self.vocab = []
         self.dataset_name = dataset_name
         self.validation_percentage = validation_percentage
         if dataset_name == 'sem-2016':
@@ -122,6 +124,9 @@ class SimpleDataset:
         train_data = []
         for i in range(len(unprocessed_data)):
             sentence = processed_sentences[i]
+            for word in sentence:
+                if word not in self.vocab:
+                    self.vocab.append(word)
             sentence_attrib = unprocessed_data[i].attrib
             try:
                 if sentence_attrib['OutOfScope'] == 'TRUE':
@@ -135,17 +140,21 @@ class SimpleDataset:
                         dict = opinions.attrib
                         if str(dict['category']) not in categories:
                             categories.append(str(dict['category']))
-                        labels[self.category_label_num[str(dict['category'])]] = 1.0
+                        labels[self.category_label_num[str(dict['category'])]] = 1
                         num_of_data_per_cat[self.category_label_num[dict['category']]] += 1
                     self.original_sentence.append(unprocessed_data[i][0].text)
                     processed_data.append([sentence, labels])
                 else:
                     test_sentence_categories = []
+                    labels = len(self.category_label_num.keys()) * [0]
                     for opinions in unprocessed_data[i][1]:
                         dict = opinions.attrib
-                        if self.category_label_num[dict['category']] not in test_sentence_categories:
-                            test_sentence_categories.append(self.category_label_num[dict['category']])
-                    processed_data.append([sentence, test_sentence_categories])
+                        # if self.category_label_num[dict['category']] not in test_sentence_categories:
+                        #     test_sentence_categories.append(self.category_label_num[dict['category']])
+                        if str(dict['category']) not in categories:
+                            categories.append(str(dict['category']))
+                        labels[self.category_label_num[str(dict['category'])]] = 1
+                    processed_data.append([sentence, labels])
         if is_train:
             num_of_valid_data_per_cat = [int(num_of_data_per_cat[i] * self.validation_percentage) for i in range(len(num_of_data_per_cat))]
             current_num_of_valid_data_per_cat = [0] * len(self.category_label_num.keys())
@@ -229,29 +238,42 @@ class SimpleDataset:
         else:
             return processed_data
 
+    def get_idxed_dataset(self, data):
+        if data == 'train':
+            train_dataset = []
+            for item in self.train_data:
+                sentence = [self.vocab.index(item[0][i]) for i in range(len(item[0]))]
+                label = item[1]
+                train_dataset.append([sentence, label])
+            return train_dataset
+        elif data == 'test':
+            test_dataset = []
+            for item in self.test_data:
+                sentence = [self.vocab.index(item[0][i]) for i in range(len(item[0]))]
+                label = item[1]
+                test_dataset.append([sentence, label])
+            return test_dataset
+        else:
+            valid_dataset = []
+            for item in self.valid_data:
+                sentence = [self.vocab.index(item[0][i]) for i in range(len(item[0]))]
+                label = item[1]
+                valid_dataset.append([sentence, label])
+            return valid_dataset
 
-word_em = models.KeyedVectors.load_word2vec_format('../yelp_W2V_skipgram.bin', binary=True)
-# word_em = models.KeyedVectors.load_word2vec_format('../glove_1.9B_300d.bin', binary=True)
-# options_file = "https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json"
-# weight_file = '../elmo_2x4096_512_2048cnn_2xhighway_5.5B_weights.hdf5'
-# elmo = E.ElmoEmbedder(options_file, weight_file)
-simple_dataset = None
 
-
-# def save_elmo_emb(sentences, data_type, dataset_name):
-#     temp = []
-#     for sentence in tqdm(sentences):
-#         sentence_ = elmo.embed_sentence(sentence)
-#         temp.append(sentence_)
-#     sentences = temp
-#     with open(data_type + '_elmo_' + dataset_name, "wb") as fp:
-#         pickle.dump(sentences, fp)
-#
-#
-# def load_elmo_emb(data_type, dataset_name):
-#     with open(data_type + '_elmo_' + dataset_name, 'rb') as fp:
-#         sentences = pickle.load(fp)
-#     return sentences
+def get_embeddings(vocab):
+    np.random.seed(0)
+    word_em = models.KeyedVectors.load_word2vec_format('../yelp_W2V_skipgram.bin', binary=True)
+    embeddings = []
+    for word in vocab:
+        if word in word_em.vocab:
+            embeddings.append(word_em[word])
+        else:
+            embeddings.append(np.random.uniform(-.05, .05, 300))
+    embeddings.append(np.random.uniform(-.05, .05, 300))
+    embeddings.append(np.zeros(300))
+    return np.array(embeddings)
 
 
 class DataLoader(dataset.Dataset):
@@ -259,20 +281,18 @@ class DataLoader(dataset.Dataset):
         assert simple_dataset is not None
         self.data_type = data
         self.simple_dataset = simple_dataset
-        if data == 'train':
-            input_data = self.simple_dataset.train_data
-        elif data == 'test':
-            input_data = self.simple_dataset.test_data
-        else:
-            input_data = self.simple_dataset.valid_data
+
+        input_data = self.simple_dataset.get_idxed_dataset(data)
 
         self.sentences = [input_data[i][0] for i in range(len(input_data))]
         self.labels = [input_data[i][1] for i in range(len(input_data))]
         if dataset_name == 'sem-2016':
-            self.sentence_length = 65
+            self.sentence_length = 66
         elif dataset_name == 'sem-2014':
             self.sentence_length = 33
         self.padding = padding
+        self.ending_idx = len(self.simple_dataset.vocab)
+        self.padding_idx = len(self.simple_dataset.vocab) + 1
         self.embedding_len = 300
 
     def __len__(self):
@@ -285,19 +305,17 @@ class DataLoader(dataset.Dataset):
         return self.sentence_length
 
     def __getitem__(self, item):
-        sentence = self.sentences[item]
-        sentence_rep = []
-        for word in sentence:
-            try:
-                sentence_rep.append(word_em[word])
-            except KeyError:
-                continue
+        sentence = deepcopy(self.sentences[item])
+        # if len(sentence) == 0:
+        #     sentence.append(self.padding_idx)
+        sentence.append(self.ending_idx)
+        length = len(sentence)
         if self.padding is True:
-            while len(sentence_rep) < self.sentence_length:
-                sentence_rep.append(np.array(np.zeros(self.embedding_len), dtype='float32'))
-        sentence_rep = np.array(sentence_rep, dtype='float32')
+            while len(sentence) < self.sentence_length:
+                sentence.append(self.padding_idx)
+        sentence_rep = np.array(sentence, dtype='long')
         label = np.array(self.labels[item])
-        return sentence_rep, np.array([label])
+        return sentence_rep, np.array([label]), length
 
 
 def get_data_loaders(validation_percentage=0.1, dataset_name='sem-2014'):
@@ -305,17 +323,9 @@ def get_data_loaders(validation_percentage=0.1, dataset_name='sem-2014'):
     train_loader = DataLoader(data='train', simple_dataset=dataset, dataset_name=dataset_name)
     valid_loader = DataLoader(data='valid', simple_dataset=dataset, dataset_name=dataset_name)
     test_loader = DataLoader(data='test', simple_dataset=dataset, dataset_name=dataset_name)
-    return train_loader, valid_loader, test_loader
+    return train_loader, valid_loader, test_loader, get_embeddings(dataset.vocab)
 
 
 def return_similar_word_to_vector(vector):
     return word_em.similar_by_vector(vector, topn=20)
 
-
-if __name__ == '__main__':
-    train, valid, test = get_data_loaders(validation_percentage=0.1, dataset_name='sem-2016')
-    print(train[0])
-    # for i in range(len(train_loader)):
-    #     print(train_loader[i][0].shape)
-        # if 1 not in train_loader[i][1]:
-        #     print(train_loader[i])

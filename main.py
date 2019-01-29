@@ -39,11 +39,11 @@ def plot_validations():
 
 
 def test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience):
-    train_loader, validation_loader, test_loader = get_data_loaders(validation_percentage, dataset_name)
+    train_loader, validation_loader, test_loader, embeddings = get_data_loaders(validation_percentage, dataset_name)
     net = Net(300, train_loader, test_loader, validation_loader, learning_rate, model_type,
               early_stopping_mode, early_stopping_min_delta, early_stopping_patience,
               input_size=input_size, num_of_topics=num_of_topics, hidden_size=hidden_size,
-              topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob)
+              topic_hidden_size=topic_hidden_size, drop_out_prob=drop_out_prob, embeddings=embeddings)
     result = net.train(batch_size=batch_size, validate=False)
     print(result)
 
@@ -113,6 +113,45 @@ def sentence_weight_examine(sentence_idx):
     # print(list(existence))
 
 
+def topic_words_examine(num_of_topics):
+    dataset = SimpleDataset(validation_percentage=validation_percentage, dataset_name=dataset_name)
+    loader = DataLoader(data='valid', simple_dataset=dataset, dataset_name='sem-2016', padding=False)
+    # for idx, sentence in enumerate(dataset.valid_original_sentence):
+    #     print(idx)
+    #     print(sentence)
+    #     print(dataset.valid_data[idx][0])
+    #     print(loader[idx][1])
+    # f, ax = plt.subplots(figsize=(9, 6))
+    # flights = flights_long.pivot("month", "year", "passengers")
+    # print(type(flights))
+    # exit()
+    # topic_words = [[] for i in range(num_of_topics)]
+    # item = loader[sentence_idx][0]
+    # preprocessed_sentence = dataset.valid_data[sentence_idx][0]
+    # orig_sentence = dataset.valid_original_sentence[sentence_idx]
+    # translator = str.maketrans(string.punctuation, ' ' * len(string.punctuation))
+    # orig_sentence = orig_sentence.translate(translator)
+    # orig_sentence = orig_sentence.split()
+    # weights, existence = get_sentence_weights('./topic-attention', item)
+
+    topics = []
+    for sentence_idx, data in enumerate(loader):
+        item = loader[sentence_idx][0]
+        preprocessed_sentence = dataset.valid_data[sentence_idx][0]
+        orig_sentence = dataset.valid_original_sentence[sentence_idx]
+        weights, existence = get_sentence_weights('./topic-attention', item)
+        stopwords_english = set(stopwords.words('english'))
+        attention_weights = []
+        words = []
+        weights = [list(weight.squeeze(0).squeeze(-1).detach().numpy()) for weight in weights]
+        most_important = [np.argmax(weight) for weight in weights]
+        most_important = [preprocessed_sentence[i] for i in most_important]
+        print(most_important)
+
+    # print(list(weights))
+    # print(list(existence))
+
+
 num_of_topics_list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 hidden_size_list = [16, 32, 64, 128, 256]
 topic_hidden_size_list = [4, 8, 16, 32, 64, 128]
@@ -130,17 +169,20 @@ early_stopping_mode = 'min'
 early_stopping_min_delta = 0
 
 model_type = 'topic-attention'
-dataset_name = 'sem-2014'
-num_of_topics = 6
+dataset_name = 'sem-2016'
+num_of_topics = 11
 hidden_size = 128
-topic_hidden_size = 16
+topic_hidden_size = 32
 drop_out_prob = 0.6
 batch_size = 128
 early_stopping_patience = 20
+
+# topic_words_examine(12)
+# exit()
 test(learning_rate, batch_size, dataset_name, model_type, early_stopping_mode, early_stopping_min_delta, early_stopping_patience)
 
-for i in range(300):
-    sentence_weight_examine(i)
+# for i in range(300):
+#     sentence_weight_examine(i)
 exit()
 
 model_type = 'vanilla-attention'
