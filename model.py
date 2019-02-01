@@ -107,11 +107,7 @@ class TopicAttentionLayer(nn.Module):
         return torch.cat(topic_output, dim=1)
 
     def regularization_loss(self):
-        # print(self.attention_context[0].weight.shape)
-        # exit()
         attn_contexts = torch.cat([self.attention_context[i].weight.view(-1).unsqueeze(0) for i in range(self.num_of_topics)], dim=0)
-        # print(attn_contexts.shape)
-        # exit()
         normalized_context_values = F.normalize(attn_contexts, dim=1)
         reg_term = torch.mm(normalized_context_values, normalized_context_values.t())
         identity = Variable(torch.eye(self.num_of_topics, self.num_of_topics))
@@ -125,13 +121,13 @@ class MemNet(nn.Module):
         super(MemNet, self).__init__()
         self.query = nn.Parameter(torch.randn(input_size), requires_grad=True)
 
-        self.linear_transform = torch.nn.Linear(input_size, input_size)
+        self.linear_transform = torch.nn.Conv1d(input_size, input_size, kernel_size=5, padding=2)
+        self.bn = torch.nn.BatchNorm1d(input_size)
+        self.drop_out = nn.Dropout(.6)
 
-        self.output_layer = torch.nn.Linear(input_size, 16)
+        self.layer_norm = nn.LayerNorm(input_size)
 
-        self.halt_prob = nn.Linear(input_size, 1)
-        self.halt_prob.bias.data.fill_(0)
-        self.threshold = 1.0 - 0.1
+        self.halt_prob = nn.Linear(input_size, 2)
         self.max_hop = 10
 
     def forward(self, x, mask):
@@ -141,26 +137,30 @@ class MemNet(nn.Module):
         if torch.has_cudnn:
             halted = halted.cuda()
 
+        halting_hop = [self.max_hop] * x.size(0)
         n_hop = 0
-        while not halted.any():
+        while not (halted.any() or n_hop == self.max_hop):
             energies = torch.bmm(x, query.unsqueeze(-1)).squeeze(-1)
             energies = energies.masked_fill(mask.squeeze(-1), -np.inf)
             probs = F.softmax(energies, dim=-1)
 
-            x = F.relu(self.linear_transform(x))
+            x = F.leaky_relu(self.bn(self.linear_transform(x.transpose(1, 2))).transpose(1, 2))
+            x = x.masked_fill(mask, .0)
 
             o = torch.bmm(x.transpose(1, 2), probs.unsqueeze(-1)).squeeze(-1)
-            halt_prob = torch.sigmoid(self.halt_prob(o + query))
+            halt_prob = F.softmax(self.halt_prob(o + query), dim=-1)
             query = o + query * (1 - halted).unsqueeze(1).float()
 
-            currently_halted = halt_prob > self.threshold
-
             for b in range(len(halted)):
-                halted[b] = halted[b] or currently_halted[b]
+                halted[b] = halted[b] or (torch.argmax(halt_prob[b], dim=-1) == 1)
+                if halting_hop[b] == self.max_hop and halted[b]:
+                    halting_hop[b] = n_hop
             n_hop += 1
-            if n_hop == self.max_hop:
-                break
-        return self.output_layer(query)
+        # if not self.training:
+        #     print(max_prob)
+        #     print(min_prob)
+        #     print(sum(halting_hop) / len(halting_hop))
+        return query
 
 
 class TopicAttention(nn.Module):
@@ -185,10 +185,15 @@ class TopicAttention(nn.Module):
         self.embeddings = nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=300, padding_idx=self.vocab_size - 1)
         self.embeddings.weight = nn.Parameter(torch.from_numpy(embeddings).float(), requires_grad=False)
 
+        self.dim_reduction = nn.Linear(300, 128)
+        self.pos_emb = PositionalEncoder(300, 66, 128, self.vocab_size - 1)
+
+        self.layer_norm = torch.nn.LayerNorm(128)
+
         self.mem_net = nn.ModuleList([
             MemNet(128) for _ in range(num_of_topics)
         ])
-        self.output_layer = torch.nn.Linear(num_of_topics * 16, classification_size)
+        self.output_layer = torch.nn.Linear(num_of_topics * 128, classification_size)
         self.drop_out = nn.Dropout(p=drop_out_prob)
 
         self.topic_hidden = nn.ModuleList([
@@ -200,6 +205,8 @@ class TopicAttention(nn.Module):
 
     def forward(self, x_indices, lengths, validate=False):
         mask = Variable(torch.ones(x_indices.size(0), x_indices.size(1), 1))
+        if torch.has_cudnn:
+            mask = mask.cuda()
         max_len = lengths[torch.argmax(lengths)].item()
         for i, l in enumerate(lengths):
             if l < max_len:
@@ -208,20 +215,22 @@ class TopicAttention(nn.Module):
         # attention_mask = 1 - torch.bmm(mask, mask.transpose(1, 2))
         mask = 1 - mask
 
-        x = self.embeddings(x_indices)
+        x = self.embeddings(x_indices) + self.pos_emb(x_indices)
+        x = self.dim_reduction(x)
+        x = x.masked_fill(mask, .0)
         x = self.drop_out(x)
 
-        x = torch.nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True)
-        x, _ = self.encoder(x)
-        x, lengths = torch.nn.utils.rnn.pad_packed_sequence(x, batch_first=True)
-        x = self.drop_out(x)
+        # x = torch.nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True)
+        # x, _ = self.encoder(x)
+        # x, lengths = torch.nn.utils.rnn.pad_packed_sequence(x, batch_first=True)
+        # x = self.layer_norm(x)
 
         x = torch.cat([self.mem_net[i](x, mask) for i in range(self.num_of_topics)], dim=-1)
         x = torch.sigmoid(self.output_layer(x))
-        return x, 0
+        return x, self.regularization_loss()
 
     def regularization_loss(self):
-        attn_contexts = torch.cat([self.attn_context[i].weight for i in range(self.num_of_topics)], dim=0)
+        attn_contexts = torch.cat([self.mem_net[i].query.unsqueeze(0) for i in range(self.num_of_topics)], dim=0)
         normalized_context_values = F.normalize(attn_contexts, dim=1)
         reg_term = torch.mm(normalized_context_values, normalized_context_values.t())
         identity = Variable(torch.eye(self.num_of_topics, self.num_of_topics))
@@ -409,7 +418,7 @@ class Net:
         self.loss_function = nn.BCELoss()
         self.validate_loss = nn.BCELoss()
 
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=1e-5)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=1e-4)
         # self.optimizer = torch.optim.Adadelta(self.model.parameters(), weight_decay=1e-5)
         self.early_stopping = EarlyStopping(mode, min_delta, patience)
         # lr_decay = lambda epoch: 1 / (1 + epoch * 0.2)
@@ -472,7 +481,7 @@ class Net:
                     loss = label_loss
 
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                # torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
                 self.optimizer.step()
                 total_loss.append(float(label_loss))
                 reg_total_loss.append(float(reg_loss))
@@ -516,13 +525,17 @@ class Net:
             data = data.long()
             labels = labels.long()
             lengths = lengths.long()
+            if torch.has_cudnn:
+                data = data.cuda()
+                labels = labels.cuda()
+                lengths = lengths.cuda()
             # print(data)
             if self.model_type == 'topic-attention' or self.model_type == 'topic-attention-without-squash':
                 outputs, _ = self.model(data, lengths)
             elif self.model_type == 'vanilla-attention':
                 outputs = self.model(data)
-            pred_labels += deepcopy(list(outputs.detach().numpy()))
-            true_labels += deepcopy(list(labels.squeeze(1).detach().numpy()))
+            pred_labels += deepcopy(list(outputs.cpu().detach().numpy()))
+            true_labels += deepcopy(list(labels.cpu().squeeze(1).detach().numpy()))
         pred_labels = list(pred_labels)
         # print(pred_labels)
         true_labels = list(true_labels)
@@ -539,12 +552,16 @@ class Net:
             data = data.long()
             labels = labels.long()
             lengths = lengths.long()
+            if torch.has_cudnn:
+                data = data.cuda()
+                labels = labels.cuda()
+                lengths = lengths.cuda()
             if self.model_type == 'topic-attention' or self.model_type == 'topic-attention-without-squash':
                 outputs, _ = self.model(data, lengths)
             elif self.model_type == 'vanilla-attention':
                 outputs = self.model(data)
-            pred_labels += deepcopy(list(outputs.detach().numpy()))
-            true_labels += deepcopy(list(labels.squeeze(1).detach().numpy()))
+            pred_labels += deepcopy(list(outputs.cpu().detach().numpy()))
+            true_labels += deepcopy(list(labels.cpu().squeeze(1).detach().numpy()))
         for threshold in list(frange(0, 1, decimal.Decimal('0.01'))):
             precision, recall, f1 = self.calculate_F1(pred_labels, true_labels, threshold)
             if f1 > best_result[0]:
@@ -589,7 +606,10 @@ class Net:
             data = data.long()
             labels = labels.float()
             lengths = lengths.long()
-
+            if torch.has_cudnn:
+                data = data.cuda()
+                labels = labels.cuda()
+                lengths = lengths.cuda()
             if self.model_type == 'topic-attention' or self.model_type == 'topic-attention-without-squash':
                 outputs, _ = self.model(data, lengths, validate=True)
             elif self.model_type == 'vanilla-attention':
